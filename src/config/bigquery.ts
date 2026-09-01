@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { BigQuery } from '@google-cloud/bigquery';
 import { env } from './env.js';
+import { decodeInlineJson } from './inline-json.js';
 import { logger } from '../utils/logger.js';
 
 let client: BigQuery | null = null;
@@ -20,15 +21,14 @@ export function getBigQueryClient(): BigQuery {
   // 1. Inline credentials (Vercel / Cloud Run / Lambda — no writable filesystem).
   const inline = env.GOOGLE_CREDENTIALS_JSON;
   if (inline) {
+    // decodeInlineJson throws a message that describes the shape of the value
+    // without ever echoing it — this one holds a private key.
+    const { json } = decodeInlineJson(inline, 'GOOGLE_CREDENTIALS_JSON');
     let parsed: { client_email?: string; private_key?: string; project_id?: string };
     try {
-      const text = inline.trim().startsWith('{') ? inline : Buffer.from(inline, 'base64').toString('utf8');
-      parsed = JSON.parse(text);
-    } catch {
-      throw new Error(
-        'GOOGLE_CREDENTIALS_JSON is set but is not valid JSON (raw or base64). ' +
-          'Paste the whole service-account file, or base64-encode it.',
-      );
+      parsed = JSON.parse(json);
+    } catch (error) {
+      throw new Error(`GOOGLE_CREDENTIALS_JSON decoded but is not valid JSON: ${(error as Error).message}`);
     }
     if (!parsed.client_email || !parsed.private_key) {
       throw new Error('GOOGLE_CREDENTIALS_JSON is missing client_email or private_key.');

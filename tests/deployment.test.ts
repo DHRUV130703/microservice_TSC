@@ -44,6 +44,16 @@ describe('schema mapping from SCHEMA_MAPPING_JSON', () => {
     expect(mod.loadSchemaMapping().orders.columns.pincode).toBe('shipping_pincode');
   });
 
+  it('survives the whole VAR= line being pasted into the value box', async () => {
+    // The exact failure seen on Vercel: the value box held "SCHEMA_MAPPING_JSON=eyJ..."
+    process.env.SCHEMA_MAPPING_JSON =
+      'SCHEMA_MAPPING_JSON=' + Buffer.from(JSON.stringify(joinOrdersMapping)).toString('base64');
+    const mod = await freshImport<typeof import('../src/config/schema.mapping.js')>(
+      '../src/config/schema.mapping.js',
+    );
+    expect(mod.loadSchemaMapping().orders.columns.orderId).toBe('order_id');
+  });
+
   it('rejects malformed inline JSON with a message naming the variable', async () => {
     process.env.SCHEMA_MAPPING_JSON = '{ not json';
     const mod = await freshImport<typeof import('../src/config/schema.mapping.js')>(
@@ -113,7 +123,15 @@ describe('BigQuery credentials from GOOGLE_CREDENTIALS_JSON', () => {
   it('rejects credentials that are neither raw JSON nor base64', async () => {
     process.env.GOOGLE_CREDENTIALS_JSON = 'not-json-not-base64-!!!';
     const mod = await freshImport<typeof import('../src/config/bigquery.js')>('../src/config/bigquery.js');
-    expect(() => mod.getBigQueryClient()).toThrow(/not valid JSON/);
+    expect(() => mod.getBigQueryClient()).toThrow(/GOOGLE_CREDENTIALS_JSON could not be read as JSON/);
+  });
+
+  it('survives the whole VAR= line being pasted into the value box', async () => {
+    const encoded = Buffer.from(JSON.stringify(fakeKey)).toString('base64');
+    process.env.GOOGLE_CREDENTIALS_JSON = `GOOGLE_CREDENTIALS_JSON=${encoded}`;
+    delete process.env.GOOGLE_CLOUD_PROJECT;
+    const mod = await freshImport<typeof import('../src/config/bigquery.js')>('../src/config/bigquery.js');
+    expect(await mod.getBigQueryClient().getProjectId()).toBe('test-project');
   });
 
   it('rejects credentials missing the private key', async () => {

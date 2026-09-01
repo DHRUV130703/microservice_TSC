@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { env } from './env.js';
+import { decodeInlineJson, InlineJsonError } from './inline-json.js';
 
 /**
  * ---------------------------------------------------------------------------
@@ -265,8 +266,12 @@ export function loadSchemaMapping(mappingPath: string = env.SCHEMA_MAPPING_PATH)
   // Inline mapping wins: serverless deployments have no repo checkout to read from.
   const inline = env.SCHEMA_MAPPING_JSON;
   if (inline) {
-    const text = inline.trim().startsWith('{') ? inline : Buffer.from(inline, 'base64').toString('utf8');
-    return parseMapping(text, 'SCHEMA_MAPPING_JSON');
+    try {
+      return parseMapping(decodeInlineJson(inline, 'SCHEMA_MAPPING_JSON').json, 'SCHEMA_MAPPING_JSON');
+    } catch (error) {
+      if (error instanceof InlineJsonError) throw new SchemaMappingError(error.message);
+      throw error;
+    }
   }
 
   const absolute = path.isAbsolute(mappingPath) ? mappingPath : path.resolve(process.cwd(), mappingPath);
