@@ -1,7 +1,7 @@
 # Deployment Plan — Pincode Metrics Service
 
 **Author:** DevOps review
-**Date:** 2026-09-01
+**Date:** 2026-09-01 (revised — orders now read from `oms_sales_union`)
 **Scope:** Taking this service from "runs on a laptop" to "runs in production"
 **Status:** Deployable today with caveats. Two items below are blockers for a public deployment.
 
@@ -11,7 +11,7 @@
 
 The service is a small, well-tested read-only API: **~3,000 lines of source, 152 passing tests,
 one BigQuery job per request**. It is stateless apart from an in-process cache, has no database
-of its own, and its only downstream dependency is BigQuery.
+of its own, and its only downstream dependency is BigQuery (`view_reports.oms_sales_union` for orders, `view_reports.lead_base` for leads).
 
 That makes it easy to deploy. The risk is not the code — it is the operational surface around it:
 
@@ -19,7 +19,7 @@ That makes it easy to deploy. The risk is not the code — it is the operational
 | --- | --- |
 | 🔴 **Blocker** | Service-account key is compromised and must be rotated |
 | 🔴 **Blocker** | API is unauthenticated — anyone with the URL can bill queries to your warehouse |
-| 🟠 High | No CI: nothing runs the 152 tests before a deploy |
+| 🟠 High | No CI: nothing runs the 155 tests before a deploy |
 | 🟠 High | Deploys are not landing reliably (production is pinned to an old commit) |
 | 🟠 High | 6 moderate CVEs, all from one transitive `uuid` dependency, fix available |
 | 🟡 Medium | Cache is per-instance, so the weekly-refresh guarantee does not hold on serverless |
@@ -44,7 +44,7 @@ before the URL is reachable by anyone outside the team.
                        │   route → controller       │  src/server.ts  (long-running)
                        │   → service → repository   │
                        └────────────────────────────┘
-                                    │ 1 parameterized job, ~90 MB scanned
+                                    │ 1 parameterized job, ~112 MB scanned
                                     ▼
                        ┌────────────────────────────┐
                        │  BigQuery — asia-south1    │  devx-tsc
@@ -112,7 +112,7 @@ Invalid values fail fast with a named error; blank values are treated as unset.
 | Variable | Value | Effect if unset |
 | --- | --- | --- |
 | `GOOGLE_CLOUD_PROJECT` | `devx-tsc` | Falls back to the credential's project |
-| `METRICS_PERIOD_ANCHOR` | `week` | Defaults to `day` — 7× more BigQuery jobs |
+| `METRICS_PERIOD_ANCHOR` | `month` | Defaults to `day`, which also puts the **current partial month in the window** and breaks agreement with the canonical query |
 | `METRICS_CACHE_TTL_SECONDS` | `604800` | Defaults to 300 s |
 | `NODE_ENV` | `production` | Affects logging verbosity only |
 | `CORS_ALLOW_ORIGIN` | your frontend origin | Defaults to `*` |
@@ -154,7 +154,7 @@ GCP Console → IAM & Admin → Service Accounts → for-abhishekh-pre-order
 
 Confirm the account holds only:
 
-- `roles/bigquery.dataViewer` on the **two datasets actually used** (`view_reports`, and
+- `roles/bigquery.dataViewer` on the **two datasets actually used** (`view_reports`, plus
   `production` only if the alternative mapping is adopted) — not project-wide
 - `roles/bigquery.jobUser` on `devx-tsc` for job submission
 
@@ -188,16 +188,21 @@ Returns the running commit and live configuration. Check all four:
 
 ```json
 { "status": "ready",
-  "deployment": { "commit": "e625df9", "bigQueryLocation": "asia-south1",
-                  "periodAnchor": "week", "credentialSource": "inline_env_json" } }
+  "deployment": { "commit": "4f7f5ca", "bigQueryLocation": "asia-south1",
+                  "periodAnchor": "month", "credentialSource": "inline_env_json" } }
 ```
 
 ```bash
 curl 'https://<app>.vercel.app/api/v1/metrics?pincode=560076'
 ```
 
-Expected: `averageOrderValue 24251.27`, `conversionRate 17.98`, 1,731 orders, 3,003 leads.
-These are cross-checked against independently written SQL — treat them as the golden values.
+Golden values, verified against the business's own canonical SQL:
+
+| Pincode | AOV | Conversion | Orders | Total value |
+| --- | --- | --- | --- | --- |
+| 400055 | 16,412.81 | 1.59% | 96 | 2,511,159.29 |
+| 400058 | 18,516.42 | 3.59% | 154 | 6,277,065.76 |
+| 560076 | 16,052.48 | 17.52% | 1,677 | 41,126,448.82 |
 
 ```bash
 curl 'https://<app>.vercel.app/api/v1/metrics?pincode=ab'      # 400 INVALID_PINCODE
@@ -255,7 +260,7 @@ gcloud run deploy pincode-metrics \
   --source . --region asia-south1 \
   --service-account pincode-metrics@devx-tsc.iam.gserviceaccount.com \
   --min-instances 1 --max-instances 5 --concurrency 40 \
-  --set-env-vars BIGQUERY_LOCATION=asia-south1,GOOGLE_CLOUD_PROJECT=devx-tsc,METRICS_PERIOD_ANCHOR=week,METRICS_CACHE_TTL_SECONDS=604800 \
+  --set-env-vars BIGQUERY_LOCATION=asia-south1,GOOGLE_CLOUD_PROJECT=devx-tsc,METRICS_PERIOD_ANCHOR=month,METRICS_CACHE_TTL_SECONDS=604800 \
   --no-allow-unauthenticated
 ```
 
@@ -272,7 +277,7 @@ supports as its third fallback. `min-instances 1` keeps the cache warm and remov
 **1. Rotate the service-account key.** See §5. One hour of work.
 
 **2. Put authentication in front of the API.** Today anyone with the URL can issue unlimited
-BigQuery queries against the warehouse. Each is ~90 MB, so a naive script costs real money and
+BigQuery queries against the warehouse. Each is ~112 MB, so a naive script costs real money and
 exposes commercial metrics. Options, cheapest first:
 
 - Vercel Authentication (SSO for the whole deployment) — zero code, right answer for internal use
@@ -281,7 +286,7 @@ exposes commercial metrics. Options, cheapest first:
 
 ### 🟠 P1 — within the first week
 
-**3. Add CI.** 152 tests exist and nothing runs them before deploy. A single workflow closes this:
+**3. Add CI.** 155 tests exist and nothing runs them before deploy. A single workflow closes this:
 
 ```yaml
 # .github/workflows/ci.yml
@@ -317,7 +322,7 @@ limit of ~30 requests/minute is generous for this workload.
 ### 🟡 P2 — within the month
 
 **7. Shared cache.** On serverless the TTL cache is per-instance and dies on freeze, so the
-`METRICS_PERIOD_ANCHOR=week` guarantee degrades to "weekly per warm instance". Upstash Redis from
+`METRICS_CACHE_TTL_SECONDS` guarantee degrades to "per warm instance". Upstash Redis from
 the Vercel Marketplace makes it real. Cloud Run with `min-instances=1` sidesteps it entirely.
 
 **8. Security headers.** No `helmet`. Add CSP, HSTS, `X-Content-Type-Options`.
@@ -332,7 +337,7 @@ and on BigQuery bytes-scanned per day exceeding a threshold — the last is the 
 
 ## 9. Cost model
 
-Per request: **~90 MB scanned ≈ $0.0006** at $6.25/TB. Query cost is flat across pincodes because
+Per request: **~112 MB scanned ≈ $0.0006** at $6.25/TB. Query cost is flat across pincodes because
 the order table is not partitioned or clustered by pincode.
 
 | Scenario | BigQuery/month | Hosting | Total |
@@ -344,7 +349,7 @@ the order table is not partitioned or clustered by pincode.
 Two controls are already in place: `BIGQUERY_MAXIMUM_BYTES_BILLED` (20 GB) fails a runaway query
 rather than billing it, and every response reports `meta.bytesProcessed`.
 
-**Optimisation available:** clustering `oms_sales_raw_optimized` on `shipping_pincode` would cut
+**Optimisation available:** clustering `oms_sales_union` on `shipping_pincode` would cut
 the scan by roughly an order of magnitude. That is a change to the warehouse, not this service,
 and needs the data team.
 
@@ -363,12 +368,24 @@ lead cohort is thin, and refuses to print a percentage below 30 leads.
 `prospect_stage` (`config/schema.mapping.lsq-status.json`) give materially different answers. The
 definition in force is returned in every response under `data.definitions`.
 
-**The order table changed under us.** `production.fact_order_item` stopped receiving retail-store
-orders on 2026-05-24; the service reads `view_reports.oms_sales_raw_optimized` instead. If order
-counts ever drop sharply again, check for a similar migration before suspecting the code.
+**The warehouse migrated mid-window.** `production.fact_order_item` stopped receiving retail-store
+orders on 2026-05-24 — every named store shows zero orders after that date, and AOV in the tail
+months collapsed from ₹35,000 to ₹19,000 as higher-value retail sales vanished. Any window
+spanning that date against the old table silently under-reports by ~80%. If order counts drop
+sharply again, look for another migration before suspecting the code.
 
-**Rows are shipment-grain.** They are deduplicated on `order_item_doc_id` before summing —
-without that, revenue overcounts by ~9% overall and up to 1600× on individual orders.
+**"Average Order Value" is currently the average LINE ITEM value.** `oms_sales_union` carries
+~1.75 rows per order, so the configured `AVG(sales)` reads 35–55% below true AOV — ₹16,052 against
+₹24,524 for 560076. This reproduces the business's existing query deliberately. Every response
+carries both readings (`supporting.averageRowValue`, `totalOrderValue`/`totalOrders`) and
+`definitions.averageOrderValue` names the one in force. Flip `orders.aovMethod` to
+`total_over_orders` for the per-order figure.
+
+**Table choice is load-bearing.** `oms_sales_union` is the business's reporting table and carries
+no status or validity columns, so no rows are excluded. The stricter alternative
+(`config/schema.mapping.oms-raw.json`) reads `oms_sales_raw_optimized`, excludes cancelled,
+returns, replacements and test rows, and deduplicates shipment-grain rows. The two disagree; the
+union table is authoritative because it is what the business already reports from.
 
 ---
 
@@ -376,9 +393,9 @@ without that, revenue overcounts by ~9% overall and up to 1600× on individual o
 
 - [ ] Service-account key rotated; old key deleted
 - [ ] Authentication in front of the API
-- [ ] CI running typecheck + 152 tests + audit on every push
-- [ ] `/health/ready` reports the expected commit, `asia-south1`, and `week`
-- [ ] Golden values verified: 560076 → AOV 24251.27, CR 17.98
+- [ ] CI running typecheck + 155 tests + audit on every push
+- [ ] `/health/ready` reports the expected commit, `asia-south1`, and `month`
+- [ ] Golden values verified: 560076 → AOV 16052.48, CR 17.52, 1,677 orders
 - [ ] `npm audit --omit=dev` clean at high severity
 - [ ] Alerting on 5xx rate and daily bytes scanned
 - [ ] Rollback rehearsed once, deliberately
