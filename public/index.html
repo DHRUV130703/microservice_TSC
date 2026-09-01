@@ -295,10 +295,21 @@
       $('r-aov-note').textContent = inr2.format(s.totalOrderValue) + ' across ' + num.format(s.totalOrders) + ' orders';
     }
 
+    // Below this many leads a percentage is noise: with 1 lead the only possible
+    // answers are 0% and 100%, and neither says anything about the pincode.
+    var MIN_LEADS_FOR_RATE = 30;
+
     if (m.conversionRate === null) {
       $('r-cr').textContent = 'No leads';
       $('r-cr').className = 'value na';
       $('r-cr-note').textContent = 'No eligible leads in this period.';
+    } else if (s.totalLeads < MIN_LEADS_FOR_RATE) {
+      $('r-cr').textContent = 'Too few leads';
+      $('r-cr').className = 'value na';
+      $('r-cr-note').textContent =
+        'Only ' + num.format(s.totalLeads) + (s.totalLeads === 1 ? ' lead' : ' leads') +
+        ' in this period (' + num.format(s.convertedLeads) + ' ordered). ' +
+        'A rate from this few is not meaningful.';
     } else {
       $('r-cr').textContent = m.conversionRate.toFixed(2) + '%';
       $('r-cr').className = 'value';
@@ -324,7 +335,8 @@
     // small relative to orders, the conversion rate is a lower bound, so say so
     // rather than presenting a precise-looking number without context.
     var caveat = $('r-caveat');
-    if (d.meta.hasData && m.conversionRate !== null && s.totalOrders > 0 && s.totalLeads < s.totalOrders * 1.5) {
+    if (d.meta.hasData && m.conversionRate !== null && s.totalLeads >= MIN_LEADS_FOR_RATE
+        && s.totalOrders > 0 && s.totalLeads < s.totalOrders * 1.5) {
       caveat.innerHTML = '<span><strong>Conversion rate is likely understated here.</strong> ' +
         'Only ' + num.format(s.totalLeads) + ' leads carry this pincode versus ' + num.format(s.totalOrders) +
         ' orders shipped to it — many buyers are recorded under a different pincode or none at all. ' +
