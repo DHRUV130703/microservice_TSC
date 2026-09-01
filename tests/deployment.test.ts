@@ -139,6 +139,53 @@ describe('BigQuery credentials from GOOGLE_CREDENTIALS_JSON', () => {
   });
 });
 
+describe('bundler safety (serverless builders bundle to CJS)', () => {
+  it('no source file depends on import.meta, which is empty once bundled to CJS', async () => {
+    // Regression: src/app.ts resolved the static directory with
+    // fileURLToPath(import.meta.url). Bundled to CJS, import.meta is empty, so
+    // fileURLToPath(undefined) threw at module load and the whole function died
+    // with FUNCTION_INVOCATION_FAILED before it could serve a single request.
+    const { readdirSync, readFileSync, statSync } = await import('node:fs');
+    const { join } = await import('node:path');
+
+    const walk = (dir: string): string[] =>
+      readdirSync(dir).flatMap((entry) => {
+        const full = join(dir, entry);
+        return statSync(full).isDirectory() ? walk(full) : full.endsWith('.ts') ? [full] : [];
+      });
+
+    // Strip comments first — the fix is documented in prose that names the very
+    // thing being banned, and that explanation must not trip the check.
+    const stripComments = (code: string): string =>
+      code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+    const offenders = [...walk('src'), ...walk('api')].filter((file) =>
+      /import\s*\.\s*meta/.test(stripComments(readFileSync(file, 'utf8'))),
+    );
+    expect(offenders, `these files use import.meta and will crash when bundled: ${offenders.join(', ')}`).toEqual([]);
+  });
+
+  it('the logger declares no pino transport, which would spawn a worker thread', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync('src/utils/logger.ts', 'utf8');
+    expect(source).not.toMatch(/transport\s*:/);
+  });
+
+  it('tolerates a missing public/ directory instead of crashing', async () => {
+    // On Vercel the CDN serves /public ahead of any rewrite, so the function
+    // bundle may legitimately not contain it.
+    process.env.SCHEMA_MAPPING_JSON = JSON.stringify(joinOrdersMapping);
+    const cwd = process.cwd();
+    try {
+      process.chdir('/tmp');
+      const mod = await freshImport<typeof import('../src/app.js')>('../src/app.js');
+      expect(() => mod.createApp()).not.toThrow();
+    } finally {
+      process.chdir(cwd);
+    }
+  });
+});
+
 describe('serverless entry point', () => {
   it('exports an Express handler as the default export', async () => {
     process.env.SCHEMA_MAPPING_JSON = JSON.stringify(joinOrdersMapping);

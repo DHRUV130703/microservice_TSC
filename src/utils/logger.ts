@@ -1,5 +1,5 @@
 import pino from 'pino';
-import { env, isProduction } from '../config/env.js';
+import { env } from '../config/env.js';
 
 /**
  * Structured logger. Credential material, SQL text and raw BigQuery errors are
@@ -21,9 +21,11 @@ export const logger = pino({
     ],
     censor: '[REDACTED]',
   },
-  ...(isProduction
-    ? {}
-    : { transport: { target: 'pino/file', options: { destination: 1 } } }),
+  // No pino `transport`. A transport spawns a worker thread and resolves its
+  // target module at runtime, which breaks inside a bundled serverless function
+  // (and pulled `supports-color`/`has-flag` into the bundle graph). Plain pino
+  // already writes newline-delimited JSON to stdout, which is what both local
+  // development and platform log collectors want.
 });
 
 export type Logger = typeof logger;

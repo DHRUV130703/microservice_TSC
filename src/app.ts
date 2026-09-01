@@ -1,5 +1,5 @@
+import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import express, { type Express } from 'express';
 import { createHealthRouter } from './routes/health.routes.js';
 import { createMetricsRouter } from './routes/metrics.routes.js';
@@ -32,15 +32,35 @@ export function createApp(options: AppOptions = {}): Express {
     next();
   });
 
-  // Static UI. Resolves to <repo>/public from both src/ (tsx) and dist/ (built).
-  const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
-  app.use(
-    express.static(publicDir, {
-      index: 'index.html',
-      // The page is a thin shell over the API; let the API's own cache govern data freshness.
-      setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache'),
-    }),
-  );
+  // Static UI.
+  //
+  // Deliberately does NOT use `import.meta.url`: serverless builders bundle this
+  // file to CJS, where import.meta is empty, and fileURLToPath(undefined) throws
+  // at module load — taking the whole function down before it can serve anything.
+  // Resolving from cwd works under `tsx` (src/), the compiled build (dist/) and
+  // a bundled function alike. When the directory is absent — as on Vercel, where
+  // the CDN serves /public ahead of any rewrite — static mounting is simply
+  // skipped rather than being a fatal error.
+  const publicDir = [
+    path.join(process.cwd(), 'public'),
+    path.join(process.cwd(), '..', 'public'),
+  ].find((candidate) => {
+    try {
+      return fs.existsSync(candidate) && fs.statSync(candidate).isDirectory();
+    } catch {
+      return false;
+    }
+  });
+
+  if (publicDir) {
+    app.use(
+      express.static(publicDir, {
+        index: 'index.html',
+        // The page is a thin shell over the API; let the API's own cache govern data freshness.
+        setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache'),
+      }),
+    );
+  }
 
   app.use(createHealthRouter());
   app.use('/api/v1', createMetricsRouter(options.metricsController));
