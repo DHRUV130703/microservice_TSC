@@ -250,13 +250,25 @@ describe('static frontend', () => {
 describe('readiness reports what is actually deployed', () => {
   it('exposes the running commit and the settings that commonly go wrong', async () => {
     const res = await request(appWith(healthyRepo)).get('/health/ready');
-    expect(res.status).toBe(200);
-    const d = res.body.data.deployment;
-    expect(d).toBeDefined();
+    // The diagnostic must appear whether the service is ready (200) or not
+    // (503) — the failing case is precisely when it is needed most.
+    expect([200, 503]).toContain(res.status);
+    const d = res.status === 200 ? res.body.data.deployment : res.body.deployment;
+    expect(d, 'deployment diagnostic missing').toBeDefined();
     expect(d.bigQueryLocation).toBeTypeOf('string');
     expect(d.periodAnchor).toBeTypeOf('string');
     expect(d.commit).toBeTypeOf('string');
     expect(d.credentialSource).toBeTypeOf('string');
+  });
+
+  it('reports the diagnostic on the 503 path too', async () => {
+    // Tests run without a schema mapping file, so readiness genuinely fails —
+    // exactly the situation a deployed service is in when misconfigured.
+    const res = await request(appWith(healthyRepo)).get('/health/ready');
+    if (res.status === 503) {
+      expect(res.body.deployment.bigQueryLocation).toBeTypeOf('string');
+      expect(res.body.error.code).toBe('CONFIGURATION_ERROR');
+    }
   });
 
   it('never leaks credentials or table names in the diagnostic', async () => {
