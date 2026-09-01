@@ -274,20 +274,37 @@ export function loadSchemaMapping(mappingPath: string = env.SCHEMA_MAPPING_PATH)
     }
   }
 
-  const absolute = path.isAbsolute(mappingPath) ? mappingPath : path.resolve(process.cwd(), mappingPath);
+  // Serverless bundlers trace `import`s, not `fs` paths, so the working
+  // directory of a deployed function is not always the repository root. Try the
+  // realistic locations and report every one that was checked.
+  const candidates = path.isAbsolute(mappingPath)
+    ? [mappingPath]
+    : [
+        path.resolve(process.cwd(), mappingPath),
+        path.resolve(process.cwd(), '..', mappingPath),
+        path.resolve('/var/task', mappingPath),
+      ];
 
-  if (!fs.existsSync(absolute)) {
+  const found = candidates.find((candidate) => {
+    try {
+      return fs.existsSync(candidate) && fs.statSync(candidate).isFile();
+    } catch {
+      return false;
+    }
+  });
+
+  if (!found) {
     throw new SchemaMappingError(
-      `Schema mapping not found at "${absolute}".\n` +
-        `This service refuses to guess BigQuery table/column names.\n` +
-        `Run "npm run discover:schema" to introspect the real BigQuery instance, ` +
-        `then copy config/schema.mapping.example.json to ${mappingPath} and fill it in ` +
-        `with the discovered tables, columns and status values.\n` +
-        `On a serverless platform with no repo checkout, set SCHEMA_MAPPING_JSON instead.`,
+      `Schema mapping not found. Looked in:\n` +
+        candidates.map((c) => `  - ${c}`).join('\n') +
+        `\nThis service refuses to guess BigQuery table/column names.\n` +
+        `Locally: run "npm run discover:schema", then fill in ${mappingPath}.\n` +
+        `On a serverless platform: commit the mapping and add "includeFiles": "config/**" to ` +
+        `vercel.json so it ships with the function, or set SCHEMA_MAPPING_JSON instead.`,
     );
   }
 
-  return parseMapping(fs.readFileSync(absolute, 'utf8'), `"${absolute}"`);
+  return parseMapping(fs.readFileSync(found, 'utf8'), `"${found}"`);
 }
 
 /** Cross-field checks the shape alone cannot express. */
