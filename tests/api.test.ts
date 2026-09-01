@@ -246,3 +246,22 @@ describe('static frontend', () => {
     expect(res.headers['cache-control']).toContain('no-cache');
   });
 });
+
+describe('readiness reports what is actually deployed', () => {
+  it('exposes the running commit and the settings that commonly go wrong', async () => {
+    const res = await request(appWith(healthyRepo)).get('/health/ready');
+    expect(res.status).toBe(200);
+    const d = res.body.data.deployment;
+    expect(d).toBeDefined();
+    expect(d.bigQueryLocation).toBeTypeOf('string');
+    expect(d.periodAnchor).toBeTypeOf('string');
+    expect(d.commit).toBeTypeOf('string');
+    expect(d.credentialSource).toBeTypeOf('string');
+  });
+
+  it('never leaks credentials or table names in the diagnostic', async () => {
+    const res = await request(appWith(healthyRepo)).get('/health/ready');
+    const body = JSON.stringify(res.body);
+    expect(body).not.toMatch(/PRIVATE KEY|private_key|fact_orders|oms_sales|lead_base/);
+  });
+});
