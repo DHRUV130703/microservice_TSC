@@ -145,6 +145,15 @@ const ordersSchema = z.object({
   excludeStatuses: z.array(z.string()).default([]),
   /** Compare statuses case-insensitively. */
   statusCaseInsensitive: z.boolean().default(true),
+  /**
+   * How Average Order Value is derived.
+   *  - total_over_orders : SUM(value) / COUNT(DISTINCT orderId).
+   *      True average per ORDER. Correct when rows are line items.
+   *  - average_of_rows   : AVG(value) across rows.
+   *      Average per ROW. On a line-item table this is the average ITEM value,
+   *      not the average order value, and reads materially lower.
+   */
+  aovMethod: z.enum(['total_over_orders', 'average_of_rows']).default('total_over_orders'),
   /** Drop non-positive order values from AOV (returns booked at 0, test rows). */
   requirePositiveValue: z.boolean().default(true),
   /** BOOLEAN validity flags, e.g. exclude rows where `is_cancelled` is TRUE. */

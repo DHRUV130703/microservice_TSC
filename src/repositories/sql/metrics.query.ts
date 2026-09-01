@@ -63,7 +63,10 @@ ${conversionCte.ctes}
 orders_agg AS (
   SELECT
     COUNT(DISTINCT order_id) AS totalOrders,
-    COALESCE(SUM(order_value), 0) AS totalOrderValue
+    COALESCE(SUM(order_value), 0) AS totalOrderValue,
+    -- Average per ROW. On a line-item table this is the average item value; it
+    -- is exposed so both readings are visible and comparable in one response.
+    AVG(order_value) AS averageRowValue
   FROM orders_scoped
 )
 ,
@@ -76,6 +79,7 @@ leads_agg AS (
 SELECT
   orders_agg.totalOrders,
   orders_agg.totalOrderValue,
+  orders_agg.averageRowValue,
   leads_agg.totalLeads,
   leads_agg.convertedLeads
 FROM orders_agg

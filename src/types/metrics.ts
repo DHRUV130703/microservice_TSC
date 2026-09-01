@@ -4,6 +4,8 @@ import type { DateWindow } from '../utils/date.js';
 export interface RawMetricsRow {
   totalOrders: number;
   totalOrderValue: number;
+  /** AVG(value) across rows — average ITEM value on a line-item table. */
+  averageRowValue?: number | null;
   totalLeads: number;
   convertedLeads: number;
 }
@@ -35,6 +37,8 @@ export interface MetricsPayload {
     totalOrderValue: number;
     totalLeads: number;
     convertedLeads: number;
+    /** Average value per row. On a line-item table, the average item value. */
+    averageRowValue: number | null;
   };
   /** Machine-readable statement of how each metric was computed. */
   definitions: {

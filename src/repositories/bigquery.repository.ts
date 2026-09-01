@@ -65,6 +65,9 @@ export class BigQueryMetricsRepository implements MetricsRepository {
       return {
         totalOrders: toNumber(row.totalOrders),
         totalOrderValue: toNumber(row.totalOrderValue),
+        averageRowValue: row.averageRowValue === null || row.averageRowValue === undefined
+          ? null
+          : toNumber(row.averageRowValue),
         totalLeads: toNumber(row.totalLeads),
         convertedLeads: toNumber(row.convertedLeads),
         bytesProcessed,

@@ -104,7 +104,13 @@ export class MetricsService {
 
     const raw = await this.repository.fetchMetrics(pincode, window);
 
-    const averageOrderValue = raw.totalOrders > 0 ? round(raw.totalOrderValue / raw.totalOrders, 2) : null;
+    // Two readings of "average order value" exist on a line-item table, and they
+    // differ materially. The mapping chooses which is the headline; both are
+    // reported so a consumer can see the other.
+    const averageRowValue = raw.averageRowValue == null ? null : round(raw.averageRowValue, 2);
+    const averagePerOrder = raw.totalOrders > 0 ? round(raw.totalOrderValue / raw.totalOrders, 2) : null;
+    const averageOrderValue =
+      this.mapping.orders.aovMethod === 'average_of_rows' ? averageRowValue : averagePerOrder;
     const conversionRate = raw.totalLeads > 0 ? round((raw.convertedLeads / raw.totalLeads) * 100, 2) : null;
     const hasData = raw.totalOrders > 0 || raw.totalLeads > 0;
 
@@ -129,6 +135,7 @@ export class MetricsService {
         totalOrderValue: round(raw.totalOrderValue, 2),
         totalLeads: raw.totalLeads,
         convertedLeads: raw.convertedLeads,
+        averageRowValue,
       },
       definitions: describeDefinitions(this.mapping, window),
       meta: {
@@ -179,8 +186,13 @@ export function describeDefinitions(mapping: SchemaMapping, window: DateWindow):
     );
   }
 
+  const numerator =
+    orders.aovMethod === 'average_of_rows'
+      ? `AVG(${orders.columns.orderValue}) across rows (average ITEM value, not per order) `
+      : `SUM(${orders.columns.orderValue}) / COUNT(DISTINCT ${orders.columns.orderId}) `;
+
   const averageOrderValue =
-    `SUM(${orders.columns.orderValue}) / COUNT(DISTINCT ${orders.columns.orderId}) ` +
+    numerator +
     `over orders whose ${orders.columns.pincode} matches the requested pincode and whose ` +
     `${orders.columns.orderDate} falls in ${window.from}..${window.to}` +
     (orderFilters.length > 0 ? `, restricted to ${orderFilters.join(' and ')}` : '');

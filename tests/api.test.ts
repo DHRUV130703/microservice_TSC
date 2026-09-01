@@ -34,7 +34,13 @@ describe('GET /api/v1/metrics — valid pincode', () => {
       expect.objectContaining({ from: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), to: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), months: 6 }),
     );
     expect(res.body.data.metrics).toEqual({ averageOrderValue: 18_500, conversionRate: 12.45 });
-    expect(res.body.data.supporting).toEqual({ totalOrders: 125, totalOrderValue: 2_312_500, totalLeads: 1004, convertedLeads: 125 });
+    expect(res.body.data.supporting).toEqual({
+      totalOrders: 125,
+      totalOrderValue: 2_312_500,
+      totalLeads: 1004,
+      convertedLeads: 125,
+      averageRowValue: null,
+    });
     expect(res.body.data.definitions.averageOrderValue).toBeTypeOf('string');
     expect(res.body.data.definitions.conversionRate).toBeTypeOf('string');
     expect(res.body.data.meta).toEqual(expect.objectContaining({ hasData: true, cached: false }));

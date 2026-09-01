@@ -2,20 +2,19 @@
   "meta": {
     "discoveredAt": "2026-08-31",
     "project": "devx-tsc",
-    "notes": "CORRECTED mapping. Orders now come from view_reports.oms_sales_raw_optimized (the post-migration OMS table), NOT production.fact_order_item. fact_order_item stopped receiving retail-store orders on 2026-05-24 (all ~215 named stores have zero orders after that date; only online/D2C continues), so any window covering June 2026 onward was missing ~80% of orders and had AOV dragged down by the loss of higher-value retail sales. oms_sales_raw_optimized is partitioned on `date`, covers 2024-01-01..today, and combines retail + D2C (oms_retail 952,392 + oms_shopify_d2c 1,187,246 ~= its 2,106,469 rows). Rows are at shipment/tracking grain, so they MUST be deduplicated on order_item_doc_id before summing sales -- one observed order (OD-453007253-9187) has 1,600 rows for a single item; undeduplicated, whole-window sales overcounts by 9.2% and individual orders by up to 1600x. Dedupe ordering includes tiebreaks (sales DESC, tracking_doc_id DESC) because record_updated_at alone ties for 11,863 items whose sales differ, which made the total nondeterministic; the max-vs-min spread is <=0.2% of AOV."
+    "notes": "Orders come from view_reports.oms_sales_union, the table the business uses for its own sales reporting. Filters match the canonical query exactly: date window only, no status or validity filters, no deduplication (SUM(sales) on this table matches per-order aggregation, so there is no row duplication to remove). Set METRICS_PERIOD_ANCHOR=month so the window is the last 6 COMPLETE calendar months, reproducing `date >= '2026-03-01' AND date < '2026-09-01'`. aovMethod is 'average_of_rows' to reproduce the canonical AVG(sales) query -- note this is the average LINE ITEM value (1.75 rows per order), not the average order value, and reads 35-55% lower than SUM(sales)/COUNT(DISTINCT order_id). Switch to 'total_over_orders' for true AOV. The previous mapping against view_reports.oms_sales_raw_optimized is kept as config/schema.mapping.oms-raw.json."
   },
   "orders": {
     "source": {
       "kind": "table",
-      "table": "devx-tsc.view_reports.oms_sales_raw_optimized"
+      "table": "devx-tsc.view_reports.oms_sales_union"
     },
     "columns": {
       "orderId": "order_id",
       "pincode": "shipping_pincode",
       "orderDate": "date",
       "orderValue": "sales",
-      "status": "order_status",
-      "joinKey": "phone"
+      "joinKey": "shipping_phone"
     },
     "orderDateType": "DATE",
     "pincodeMatch": {
@@ -24,53 +23,16 @@
       "caseInsensitive": false,
       "stripCharacters": ""
     },
-    "includeStatuses": [
-      "valid"
-    ],
+    "includeStatuses": [],
     "excludeStatuses": [],
     "statusCaseInsensitive": true,
-    "columnFilters": [
-      {
-        "column": "pre_post_order_type",
-        "operator": "in",
-        "values": [
-          "pre_order"
-        ],
-        "caseInsensitive": true
-      },
-      {
-        "column": "flag",
-        "operator": "not_in",
-        "values": [
-          "inf_test"
-        ],
-        "caseInsensitive": true
-      }
-    ],
+    "columnFilters": [],
     "booleanFlags": {
-      "excludeWhenTrue": [
-        "is_deleted"
-      ],
+      "excludeWhenTrue": [],
       "requireTrue": []
     },
-    "requirePositiveValue": true,
-    "dedupe": {
-      "keyColumns": [
-        "order_item_doc_id"
-      ],
-      "orderByColumn": "record_updated_at",
-      "direction": "DESC",
-      "tiebreakColumns": [
-        {
-          "column": "sales",
-          "direction": "DESC"
-        },
-        {
-          "column": "tracking_doc_id",
-          "direction": "DESC"
-        }
-      ]
-    }
+    "requirePositiveValue": false,
+    "aovMethod": "average_of_rows"
   },
   "leads": {
     "source": {

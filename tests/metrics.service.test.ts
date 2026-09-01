@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MetricsService } from '../src/services/metrics.service.js';
 import type { MetricsRepository, MetricsQueryResult } from '../src/repositories/bigquery.repository.js';
+import { schemaMappingSchema } from '../src/config/schema.mapping.js';
 import { joinOrdersMapping, statusFlagMapping } from './fixtures/mapping.js';
 import type { DateWindow } from '../src/utils/date.js';
 
@@ -68,7 +69,13 @@ describe('pincode with no data', () => {
     const result = await service.getMetrics('999999', NOW);
     expect(result.message).toBe('No data found for the requested pincode and period.');
     expect(result.payload.metrics).toEqual({ averageOrderValue: null, conversionRate: null });
-    expect(result.payload.supporting).toEqual({ totalOrders: 0, totalOrderValue: 0, totalLeads: 0, convertedLeads: 0 });
+    expect(result.payload.supporting).toEqual({
+      totalOrders: 0,
+      totalOrderValue: 0,
+      totalLeads: 0,
+      convertedLeads: 0,
+      averageRowValue: null,
+    });
     expect(result.payload.meta.hasData).toBe(false);
   });
 
@@ -129,5 +136,42 @@ describe('response caching', () => {
     expect(first.payload.meta.cached).toBe(false);
     expect(second.payload.meta.cached).toBe(true);
     expect(second.payload.metrics).toEqual(first.payload.metrics);
+  });
+});
+
+
+describe('AOV method selection', () => {
+  /**
+   * On a line-item table these two readings differ materially — for pincode
+   * 560076 they are 16,052 and 24,524 — so which one is the headline is a
+   * business decision the mapping records explicitly.
+   */
+  const raw = { totalOrders: 100, totalOrderValue: 2_500_000, averageRowValue: 16_052.48 };
+
+  it('total_over_orders divides value by distinct orders', async () => {
+    const mapping = schemaMappingSchema.parse({
+      ...joinOrdersMapping,
+      orders: { ...joinOrdersMapping.orders, aovMethod: 'total_over_orders' },
+    });
+    const { payload } = await new MetricsService(repositoryReturning(raw), mapping).getMetrics('400092', NOW);
+    expect(payload.metrics.averageOrderValue).toBe(25_000);
+    expect(payload.definitions.averageOrderValue).toContain('COUNT(DISTINCT order_id)');
+  });
+
+  it('average_of_rows returns the per-row average and says it is per item', async () => {
+    const mapping = schemaMappingSchema.parse({
+      ...joinOrdersMapping,
+      orders: { ...joinOrdersMapping.orders, aovMethod: 'average_of_rows' },
+    });
+    const { payload } = await new MetricsService(repositoryReturning(raw), mapping).getMetrics('400092', NOW);
+    expect(payload.metrics.averageOrderValue).toBe(16_052.48);
+    expect(payload.definitions.averageOrderValue).toContain('average ITEM value');
+  });
+
+  it('always reports both readings so the difference is visible', async () => {
+    const { payload } = await new MetricsService(repositoryReturning(raw), joinOrdersMapping).getMetrics('400092', NOW);
+    expect(payload.supporting.averageRowValue).toBe(16_052.48);
+    expect(payload.supporting.totalOrderValue).toBe(2_500_000);
+    expect(payload.supporting.totalOrders).toBe(100);
   });
 });
