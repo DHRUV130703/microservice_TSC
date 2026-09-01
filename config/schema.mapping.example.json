@@ -1,0 +1,59 @@
+{
+  "$comment": [
+    "TEMPLATE ONLY. Every value below is a PLACEHOLDER and must be replaced with",
+    "facts discovered from the real BigQuery instance via `npm run discover:schema`.",
+    "Copy this file to config/schema.mapping.json and fill it in. The service",
+    "refuses to start metrics queries until it exists and validates."
+  ],
+  "meta": {
+    "discoveredAt": "REPLACE_ME: ISO date the schema was inspected",
+    "project": "REPLACE_ME: gcp-project-id",
+    "notes": "REPLACE_ME: which report this came from, and any caveats"
+  },
+
+  "orders": {
+    "source": { "kind": "table", "table": "REPLACE_ME.dataset.orders_table" },
+    "columns": {
+      "orderId": "REPLACE_ME_order_id_column",
+      "pincode": "REPLACE_ME_pincode_column",
+      "orderDate": "REPLACE_ME_order_date_column",
+      "orderValue": "REPLACE_ME_order_value_column",
+      "status": "REPLACE_ME_status_column_or_remove_this_key",
+      "joinKey": "REPLACE_ME_phone_or_customer_id_or_remove_this_key"
+    },
+    "orderDateType": "DATE",
+    "pincodeMatch": { "columnType": "STRING", "trim": true, "caseInsensitive": false, "stripCharacters": "" },
+    "includeStatuses": [],
+    "excludeStatuses": ["REPLACE_ME_cancelled", "REPLACE_ME_refunded", "REPLACE_ME_failed"],
+    "statusCaseInsensitive": true,
+    "requirePositiveValue": true
+  },
+
+  "leads": {
+    "source": { "kind": "table", "table": "REPLACE_ME.dataset.leads_table" },
+    "columns": {
+      "leadId": "REPLACE_ME_lead_id_column",
+      "pincode": "REPLACE_ME_pincode_column",
+      "createdAt": "REPLACE_ME_lead_created_date_column",
+      "status": "REPLACE_ME_lead_status_column_or_remove_this_key",
+      "joinKey": "REPLACE_ME_phone_or_customer_id_or_remove_this_key"
+    },
+    "createdAtType": "DATE",
+    "pincodeMatch": { "columnType": "STRING", "trim": true, "caseInsensitive": false, "stripCharacters": "" },
+    "excludeStatuses": ["REPLACE_ME_spam", "REPLACE_ME_duplicate", "REPLACE_ME_test"],
+    "statusCaseInsensitive": true,
+
+    "conversion": {
+      "strategy": "join_orders",
+      "orderWithinPeriod": true,
+      "normalizeJoinKey": true,
+      "joinKeyStripCharacters": "+-() ",
+      "joinKeyLastCharacters": 10
+    },
+
+    "$conversionAlternative": {
+      "strategy": "status_flag",
+      "convertedStatuses": ["REPLACE_ME_converted", "REPLACE_ME_won", "REPLACE_ME_order_placed"]
+    }
+  }
+}

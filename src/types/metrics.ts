@@ -1,0 +1,76 @@
+import type { DateWindow } from '../utils/date.js';
+
+/** Raw single-row aggregate returned by the BigQuery repository. */
+export interface RawMetricsRow {
+  totalOrders: number;
+  totalOrderValue: number;
+  totalLeads: number;
+  convertedLeads: number;
+}
+
+export interface MetricsPeriod {
+  from: string;
+  to: string;
+  months: number;
+  mode: DateWindow['mode'];
+  /** How often the window moves: 'day' | 'week' | 'month'. */
+  anchor: DateWindow['anchor'];
+  timezone: string;
+  /** ISO date on which the window next moves and BigQuery is queried again. */
+  nextRolloverOn: string;
+}
+
+export interface MetricsPayload {
+  pincode: string;
+  period: MetricsPeriod;
+  metrics: {
+    /** Total order value / order count. `null` when there are no orders. */
+    averageOrderValue: number | null;
+    /** Converted leads / eligible leads x 100. `null` when there are no leads. */
+    conversionRate: number | null;
+  };
+  /** Supporting counters so the metrics can be validated and debugged. */
+  supporting: {
+    totalOrders: number;
+    totalOrderValue: number;
+    totalLeads: number;
+    convertedLeads: number;
+  };
+  /** Machine-readable statement of how each metric was computed. */
+  definitions: {
+    averageOrderValue: string;
+    conversionRate: string;
+  };
+  meta: {
+    hasData: boolean;
+    generatedAt: string;
+    cached: boolean;
+    /** When this payload was actually computed from BigQuery (ISO). */
+    fetchedAt: string;
+    /** Age of the underlying BigQuery result, in seconds. 0 on a fresh fetch. */
+    ageSeconds: number;
+    /** BigQuery bytes processed. Retained on cached responses. */
+    bytesProcessed?: number;
+  };
+}
+
+export interface MetricsResult {
+  payload: MetricsPayload;
+  message?: string;
+}
+
+export interface SuccessEnvelope<T> {
+  success: true;
+  data: T;
+  message?: string;
+}
+
+export interface ErrorEnvelope {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+    details?: unknown;
+  };
+  requestId?: string;
+}

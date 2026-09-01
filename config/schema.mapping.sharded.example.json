@@ -1,0 +1,33 @@
+{
+  "$comment": [
+    "TEMPLATE for README Option B: history split across date-sharded tables.",
+    "`wildcard` prunes shards with _TABLE_SUFFIX, so only the months inside the",
+    "reporting window are scanned. `tables` UNION ALLs an explicit list instead,",
+    "for schemas that are not uniformly named."
+  ],
+  "meta": { "project": "REPLACE_ME", "notes": "sharded-history variant" },
+  "orders": {
+    "source": { "kind": "wildcard", "table": "REPLACE_ME.dataset.orders_*", "suffixFormat": "YYYY_MM" },
+    "columns": {
+      "orderId": "REPLACE_ME_order_id_column",
+      "pincode": "REPLACE_ME_pincode_column",
+      "orderDate": "REPLACE_ME_order_date_column",
+      "orderValue": "REPLACE_ME_order_value_column",
+      "status": "REPLACE_ME_status_column"
+    },
+    "orderDateType": "TIMESTAMP",
+    "excludeStatuses": ["REPLACE_ME_cancelled"],
+    "dedupe": { "keyColumns": ["REPLACE_ME_order_id_column"], "orderByColumn": "REPLACE_ME_updated_at_column", "direction": "DESC" }
+  },
+  "leads": {
+    "source": { "kind": "tables", "tables": ["REPLACE_ME.dataset.leads_current", "REPLACE_ME.dataset.leads_archive"] },
+    "columns": {
+      "leadId": "REPLACE_ME_lead_id_column",
+      "pincode": "REPLACE_ME_pincode_column",
+      "createdAt": "REPLACE_ME_created_at_column",
+      "status": "REPLACE_ME_lead_status_column"
+    },
+    "createdAtType": "DATE",
+    "conversion": { "strategy": "status_flag", "convertedStatuses": ["REPLACE_ME_converted"] }
+  }
+}

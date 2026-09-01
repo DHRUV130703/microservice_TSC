@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "discoveredAt": "2026-08-31",
+    "project": "devx-tsc",
+    "notes": "Discovered via `npm run discover:schema` + data profiling against devx-tsc (asia-south1). Orders: production.fact_order_item (line-item grain, 1,095,545 rows / 697,154 distinct orders, boolean is_cancelled/is_refunded flags, shipping_pincode 99.95% valid 6-digit). Leads: view_reports.lead_base (4,181,431 rows = 4,181,431 distinct phone, i.e. exactly one row per lead; partitioned on lead_created_on, clustered on source/quality/lead_type). Conversion is order-backed via phone join because lead_base carries no stage column. See config/schema.mapping.lsq-status.json for the CRM-stage alternative."
+  },
+
+  "orders": {
+    "source": { "kind": "table", "table": "devx-tsc.production.fact_order_item" },
+    "columns": {
+      "orderId": "order_id",
+      "pincode": "shipping_pincode",
+      "orderDate": "order_date",
+      "orderValue": "item_subtotal",
+      "joinKey": "shipping_phone"
+    },
+    "orderDateType": "TIMESTAMP",
+    "pincodeMatch": { "columnType": "STRING", "trim": true, "caseInsensitive": false, "stripCharacters": "" },
+    "includeStatuses": [],
+    "excludeStatuses": [],
+    "booleanFlags": { "excludeWhenTrue": ["is_cancelled", "is_refunded"], "requireTrue": [] },
+    "requirePositiveValue": true
+  },
+
+  "leads": {
+    "source": { "kind": "table", "table": "devx-tsc.view_reports.lead_base" },
+    "columns": {
+      "leadId": "phone",
+      "pincode": "recent_pincode",
+      "createdAt": "lead_created_on",
+      "joinKey": "phone"
+    },
+    "createdAtType": "DATE",
+    "pincodeMatch": { "columnType": "STRING", "trim": true, "caseInsensitive": false, "stripCharacters": "" },
+    "excludeStatuses": [],
+    "booleanFlags": { "excludeWhenTrue": [], "requireTrue": [] },
+
+    "conversion": {
+      "strategy": "join_orders",
+      "orderWithinPeriod": true,
+      "normalizeJoinKey": true,
+      "joinKeyStripCharacters": "+-() ",
+      "joinKeyLastCharacters": 10
+    }
+  }
+}

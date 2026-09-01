@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "discoveredAt": "2026-08-31",
+    "project": "devx-tsc",
+    "notes": "ALTERNATIVE conversion definition: the CRM's own recorded outcome. Leads come from production.lsq_all_leads (LeadSquared), which is a stage-HISTORY table: 37,833,986 rows for 4,185,572 distinct lead_number (~9 rows/lead), and prospect_stage varies across a lead's rows (up to 13 distinct stages). Deduped on lead_number by last_modified_on DESC, so `prospect_stage` means CURRENT stage, not ever-reached. Trade-offs vs the default mapping: authoritative business definition, but the table is unpartitioned (~1.5-2.2 GB scanned per query vs ~0.15 GB) and lead_zip is populated for only 1,806,088 of 4,185,572 leads."
+  },
+
+  "orders": {
+    "source": { "kind": "table", "table": "devx-tsc.production.fact_order_item" },
+    "columns": {
+      "orderId": "order_id",
+      "pincode": "shipping_pincode",
+      "orderDate": "order_date",
+      "orderValue": "item_subtotal"
+    },
+    "orderDateType": "TIMESTAMP",
+    "pincodeMatch": { "columnType": "STRING", "trim": true },
+    "booleanFlags": { "excludeWhenTrue": ["is_cancelled", "is_refunded"] },
+    "requirePositiveValue": true
+  },
+
+  "leads": {
+    "source": { "kind": "table", "table": "devx-tsc.production.lsq_all_leads" },
+    "columns": {
+      "leadId": "lead_number",
+      "pincode": "lead_zip",
+      "createdAt": "created_on",
+      "status": "prospect_stage",
+      "joinKey": "phone"
+    },
+    "createdAtType": "DATETIME",
+    "pincodeMatch": { "columnType": "STRING", "trim": true },
+    "excludeStatuses": ["Spam", "Invalid Number", "Wrong Number", "DND"],
+    "statusCaseInsensitive": true,
+    "dedupe": { "keyColumns": ["lead_number"], "orderByColumn": "last_modified_on", "direction": "DESC" },
+
+    "conversion": {
+      "strategy": "status_flag",
+      "convertedStatuses": ["Converted", "Deal Closed", "Already Converted", "Bought From Marketplace", "Bought From Another Number"]
+    }
+  }
+}

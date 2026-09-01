@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Environment / secrets  -- NEVER commit these
+.env
+.env.*
+!.env.example
+
+# Google Cloud service-account credentials
+credentials/
+*.json.key
+*service-account*.json
+*-key.json
+Key.json
+application_default_credentials.json
+
+# Generated schema-discovery reports (contain table/column names)
+reports/
+scratch/
+
+# The live mapping is environment-specific; templates and the documented
+# alternative are tracked.
+config/schema.mapping.json
+!config/schema.mapping.example.json
+!config/schema.mapping.sharded.example.json
+!config/schema.mapping.lsq-status.json
+
+# Logs
+*.log
+logs/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
