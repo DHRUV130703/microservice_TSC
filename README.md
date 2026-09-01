@@ -103,6 +103,17 @@ reference. Do not use it.
 
 ---
 
+## Deploying
+
+**[DEPLOYMENT.md](DEPLOYMENT.md)** — target comparison (Vercel vs Cloud Run), configuration
+contract, secrets handling, deploy and rollback runbooks, a prioritised risk register, and the
+cost model. Read it before deploying anywhere that is not a laptop.
+
+Two items in it are blockers for a public deployment: the service-account key needs rotating, and
+the API has no authentication.
+
+---
+
 ## Architecture
 
 ```
