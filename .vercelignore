@@ -1,0 +1,14 @@
+# Never ship credentials or local env to the build
+credentials/
+.env
+.env.*
+!.env.example
+
+# Not needed at runtime
+tests/
+reports/
+scratch/
+dist/
+docs/
+scripts/
+node_modules/

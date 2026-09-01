@@ -242,7 +242,33 @@ export class SchemaMappingError extends Error {
 
 let cached: SchemaMapping | null = null;
 
+/** Parses and validates a mapping already held as text. */
+function parseMapping(text: string, origin: string): SchemaMapping {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch (error) {
+    throw new SchemaMappingError(`Schema mapping from ${origin} is not valid JSON: ${(error as Error).message}`);
+  }
+
+  const parsed = schemaMappingSchema.safeParse(raw);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n');
+    throw new SchemaMappingError(`Schema mapping from ${origin} is invalid:\n${issues}`);
+  }
+
+  assertConsistent(parsed.data);
+  return parsed.data;
+}
+
 export function loadSchemaMapping(mappingPath: string = env.SCHEMA_MAPPING_PATH): SchemaMapping {
+  // Inline mapping wins: serverless deployments have no repo checkout to read from.
+  const inline = env.SCHEMA_MAPPING_JSON;
+  if (inline) {
+    const text = inline.trim().startsWith('{') ? inline : Buffer.from(inline, 'base64').toString('utf8');
+    return parseMapping(text, 'SCHEMA_MAPPING_JSON');
+  }
+
   const absolute = path.isAbsolute(mappingPath) ? mappingPath : path.resolve(process.cwd(), mappingPath);
 
   if (!fs.existsSync(absolute)) {
@@ -251,25 +277,12 @@ export function loadSchemaMapping(mappingPath: string = env.SCHEMA_MAPPING_PATH)
         `This service refuses to guess BigQuery table/column names.\n` +
         `Run "npm run discover:schema" to introspect the real BigQuery instance, ` +
         `then copy config/schema.mapping.example.json to ${mappingPath} and fill it in ` +
-        `with the discovered tables, columns and status values.`,
+        `with the discovered tables, columns and status values.\n` +
+        `On a serverless platform with no repo checkout, set SCHEMA_MAPPING_JSON instead.`,
     );
   }
 
-  let raw: unknown;
-  try {
-    raw = JSON.parse(fs.readFileSync(absolute, 'utf8'));
-  } catch (error) {
-    throw new SchemaMappingError(`Schema mapping at "${absolute}" is not valid JSON: ${(error as Error).message}`);
-  }
-
-  const parsed = schemaMappingSchema.safeParse(raw);
-  if (!parsed.success) {
-    const issues = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n');
-    throw new SchemaMappingError(`Schema mapping at "${absolute}" is invalid:\n${issues}`);
-  }
-
-  assertConsistent(parsed.data);
-  return parsed.data;
+  return parseMapping(fs.readFileSync(absolute, 'utf8'), `"${absolute}"`);
 }
 
 /** Cross-field checks the shape alone cannot express. */

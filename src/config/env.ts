@@ -14,6 +14,12 @@ const envSchema = z.object({
   GOOGLE_CLOUD_PROJECT: z.string().min(1).optional(),
   /** Path to the service-account JSON. Omit to use Application Default Credentials. */
   GOOGLE_APPLICATION_CREDENTIALS: z.string().min(1).optional(),
+  /**
+   * Service-account JSON supplied inline, for platforms with no writable
+   * filesystem (Vercel, Cloud Run, Lambda). Raw JSON or base64-encoded.
+   * Takes precedence over GOOGLE_APPLICATION_CREDENTIALS.
+   */
+  GOOGLE_CREDENTIALS_JSON: z.string().min(1).optional(),
   /** BigQuery job location, e.g. "US", "asia-south1". */
   BIGQUERY_LOCATION: z.string().min(1).default('US'),
   /** Hard ceiling on bytes billed per query. Query fails instead of overspending. */
@@ -23,6 +29,12 @@ const envSchema = z.object({
 
   /** Path to the schema mapping file describing the real BigQuery layout. */
   SCHEMA_MAPPING_PATH: z.string().min(1).default('config/schema.mapping.json'),
+  /**
+   * The schema mapping supplied inline instead of as a file, for deployments
+   * where the mapping is not committed. Raw JSON or base64-encoded.
+   * Takes precedence over SCHEMA_MAPPING_PATH.
+   */
+  SCHEMA_MAPPING_JSON: z.string().min(1).optional(),
 
   /**
    * How the "last 6 months" window is derived.
