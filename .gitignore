@@ -23,12 +23,10 @@ application_default_credentials.json
 reports/
 scratch/
 
-# The live mapping is environment-specific; templates and the documented
-# alternative are tracked.
-config/schema.mapping.json
-!config/schema.mapping.example.json
-!config/schema.mapping.sharded.example.json
-!config/schema.mapping.lsq-status.json
+# The schema mapping is tracked deliberately. It holds no credentials — only
+# table, column and status names — and committing it makes deployments
+# reproducible and removes the need to paste a 4.5 KB env var into a dashboard.
+# Do NOT commit it if this repository ever becomes public.
 
 # Logs
 *.log

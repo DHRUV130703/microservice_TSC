@@ -1,0 +1,107 @@
+{
+  "meta": {
+    "discoveredAt": "2026-08-31",
+    "project": "devx-tsc",
+    "notes": "CORRECTED mapping. Orders now come from view_reports.oms_sales_raw_optimized (the post-migration OMS table), NOT production.fact_order_item. fact_order_item stopped receiving retail-store orders on 2026-05-24 (all ~215 named stores have zero orders after that date; only online/D2C continues), so any window covering June 2026 onward was missing ~80% of orders and had AOV dragged down by the loss of higher-value retail sales. oms_sales_raw_optimized is partitioned on `date`, covers 2024-01-01..today, and combines retail + D2C (oms_retail 952,392 + oms_shopify_d2c 1,187,246 ~= its 2,106,469 rows). Rows are at shipment/tracking grain, so they MUST be deduplicated on order_item_doc_id before summing sales -- one observed order (OD-453007253-9187) has 1,600 rows for a single item; undeduplicated, whole-window sales overcounts by 9.2% and individual orders by up to 1600x. Dedupe ordering includes tiebreaks (sales DESC, tracking_doc_id DESC) because record_updated_at alone ties for 11,863 items whose sales differ, which made the total nondeterministic; the max-vs-min spread is <=0.2% of AOV."
+  },
+  "orders": {
+    "source": {
+      "kind": "table",
+      "table": "devx-tsc.view_reports.oms_sales_raw_optimized"
+    },
+    "columns": {
+      "orderId": "order_id",
+      "pincode": "shipping_pincode",
+      "orderDate": "date",
+      "orderValue": "sales",
+      "status": "order_status",
+      "joinKey": "phone"
+    },
+    "orderDateType": "DATE",
+    "pincodeMatch": {
+      "columnType": "STRING",
+      "trim": true,
+      "caseInsensitive": false,
+      "stripCharacters": ""
+    },
+    "includeStatuses": [
+      "valid"
+    ],
+    "excludeStatuses": [],
+    "statusCaseInsensitive": true,
+    "columnFilters": [
+      {
+        "column": "pre_post_order_type",
+        "operator": "in",
+        "values": [
+          "pre_order"
+        ],
+        "caseInsensitive": true
+      },
+      {
+        "column": "flag",
+        "operator": "not_in",
+        "values": [
+          "inf_test"
+        ],
+        "caseInsensitive": true
+      }
+    ],
+    "booleanFlags": {
+      "excludeWhenTrue": [
+        "is_deleted"
+      ],
+      "requireTrue": []
+    },
+    "requirePositiveValue": true,
+    "dedupe": {
+      "keyColumns": [
+        "order_item_doc_id"
+      ],
+      "orderByColumn": "record_updated_at",
+      "direction": "DESC",
+      "tiebreakColumns": [
+        {
+          "column": "sales",
+          "direction": "DESC"
+        },
+        {
+          "column": "tracking_doc_id",
+          "direction": "DESC"
+        }
+      ]
+    }
+  },
+  "leads": {
+    "source": {
+      "kind": "table",
+      "table": "devx-tsc.view_reports.lead_base"
+    },
+    "columns": {
+      "leadId": "phone",
+      "pincode": "recent_pincode",
+      "createdAt": "lead_created_on",
+      "joinKey": "phone"
+    },
+    "createdAtType": "DATE",
+    "pincodeMatch": {
+      "columnType": "STRING",
+      "trim": true,
+      "caseInsensitive": false,
+      "stripCharacters": ""
+    },
+    "excludeStatuses": [],
+    "columnFilters": [],
+    "booleanFlags": {
+      "excludeWhenTrue": [],
+      "requireTrue": []
+    },
+    "conversion": {
+      "strategy": "join_orders",
+      "orderWithinPeriod": true,
+      "normalizeJoinKey": true,
+      "joinKeyStripCharacters": "+-() ",
+      "joinKeyLastCharacters": 10
+    }
+  }
+}
