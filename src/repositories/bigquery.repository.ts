@@ -1,5 +1,6 @@
 import type { BigQuery } from '@google-cloud/bigquery';
 import { baseJobOptions, getBigQueryClient } from '../config/bigquery.js';
+import { env } from '../config/env.js';
 import { getSchemaMapping, type SchemaMapping } from '../config/schema.mapping.js';
 import { AppError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
@@ -96,7 +97,15 @@ export class BigQueryMetricsRepository implements MetricsRepository {
       );
     }
     if (reason === 'accessDenied' || err?.code === 403 || lower.includes('permission denied')) {
-      return AppError.configuration('The service account is not permitted to query the configured analytics tables.');
+      // BigQuery reports a job run in the wrong region as "Access Denied", not
+      // as a location error, so an operator reasonably concludes the service
+      // account lacks a grant and starts editing IAM. Name the likelier cause.
+      return AppError.configuration(
+        `Analytics query refused. The service account may lack access to the configured tables, ` +
+          `but the more common cause is a region mismatch: jobs are running in ` +
+          `"${env.BIGQUERY_LOCATION}" and BigQuery reports a cross-region query as Access Denied. ` +
+          `Check that BIGQUERY_LOCATION matches the dataset's location.`,
+      );
     }
     if (reason === 'invalidQuery' || lower.includes('unrecognized name') || lower.includes('syntax error')) {
       return AppError.configuration(
