@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import request from 'supertest';
-import { createApp } from '../src/app.js';
+import { createApp } from '../src/create-app.js';
 import { MetricsController } from '../src/controllers/metrics.controller.js';
 import { MetricsService } from '../src/services/metrics.service.js';
 import { AppError, ErrorCode } from '../src/utils/errors.js';

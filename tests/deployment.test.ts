@@ -196,7 +196,7 @@ describe('bundler safety (serverless builders bundle to CJS)', () => {
     const cwd = process.cwd();
     try {
       process.chdir('/tmp');
-      const mod = await freshImport<typeof import('../src/app.js')>('../src/app.js');
+      const mod = await freshImport<typeof import('../src/create-app.js')>('../src/create-app.js');
       expect(() => mod.createApp()).not.toThrow();
     } finally {
       process.chdir(cwd);

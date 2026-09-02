@@ -57,7 +57,7 @@ Two entry points share one app factory (`createApp()`):
 
 | Entry | Used by | Lifecycle |
 | --- | --- | --- |
-| `src/server.ts` | local, Docker, Cloud Run, any VM | calls `listen()`, long-running |
+| `src/start.ts` | local, Docker, Cloud Run, any VM | calls `listen()`, long-running |
 | `api/index.ts` | Vercel | exports the app, invoked per request |
 
 **Statelessness:** the only in-memory state is a TTL cache of computed metrics. Losing it costs a
@@ -90,7 +90,7 @@ service-account key entirely.** The key rotation problem below stops being a rec
 because there is no key. Secondary wins: `min-instances=1` makes the cache and the weekly refresh
 actually work, and eliminates the 10-second cold start.
 
-`src/server.ts` already does everything Cloud Run needs — graceful `SIGTERM` handling, a `PORT`
+`src/start.ts` already does everything Cloud Run needs — graceful `SIGTERM` handling, a `PORT`
 env var, and `/health` + `/health/ready` probes. A Dockerfile is the only missing piece.
 
 ---
@@ -256,7 +256,7 @@ COPY public ./public
 COPY config ./config
 USER node
 EXPOSE 3000
-CMD ["node", "dist/server.js"]
+CMD ["node", "dist/start.js"]
 ```
 
 ```bash
