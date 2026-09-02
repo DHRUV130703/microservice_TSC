@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Pincode Metrics</title>
+<link rel="icon" type="image/png" href="/logo.png" />
 <meta name="description" content="Average Order Value and Conversion Rate by pincode, last 6 months." />
 <style>
   :root {
@@ -60,6 +61,16 @@
   .wrap { max-width: 880px; margin: 0 auto; }
 
   header { margin-bottom: 28px; }
+  /* The wordmark is dark navy on transparency, so it disappears against the
+     dark theme. A white plate keeps the brand colours exact on both themes
+     rather than filtering the logo and losing the blue accent. */
+  .brand {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #fff; border-radius: 10px; padding: 10px 14px;
+    margin-bottom: 16px; box-shadow: var(--shadow);
+  }
+  .brand img { display: block; height: 30px; width: auto; }
+  @media (max-width: 620px) { .brand img { height: 24px; } }
   h1 { font-size: 21px; font-weight: 650; letter-spacing: -.01em; margin: 0 0 4px; }
   .sub { color: var(--text-muted); font-size: 14px; margin: 0; }
 
@@ -177,6 +188,12 @@
 <div class="wrap">
 
   <header>
+    <div class="brand">
+      <picture>
+        <source srcset="/logo.avif" type="image/avif" />
+        <img src="/logo.png" alt="The Sleep Company" width="600" height="132" />
+      </picture>
+    </div>
     <h1>Pincode Metrics</h1>
     <p class="sub">Average Order Value and Conversion Rate for the last 6 months.</p>
   </header>

@@ -56,8 +56,21 @@ export function createApp(options: AppOptions = {}): Express {
     app.use(
       express.static(publicDir, {
         index: 'index.html',
-        // The page is a thin shell over the API; let the API's own cache govern data freshness.
-        setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache'),
+        setHeaders: (res, filePath) => {
+          // Express's mime table predates AVIF and serves it as
+          // application/octet-stream, which browsers may refuse inside a
+          // <picture> source. Declare it explicitly.
+          if (filePath.endsWith('.avif')) res.setHeader('Content-Type', 'image/avif');
+
+          // The page is a thin shell over the API; let the API's own cache
+          // govern data freshness. Images are content-addressed by name and
+          // change rarely, so they can be cached hard.
+          if (/\.(avif|png|jpg|jpeg|svg|webp|ico|woff2?)$/.test(filePath)) {
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+          } else {
+            res.setHeader('Cache-Control', 'no-cache');
+          }
+        },
       }),
     );
   }
