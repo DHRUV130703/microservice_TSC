@@ -335,10 +335,13 @@ so consumers never have to guess which one produced a number.
 
 Always derived from the clock, never hardcoded. Two modes (`METRICS_PERIOD_MODE`):
 
-| Mode | On `2026-08-31` | Meaning |
+| Mode | On `2026-08-30` | Meaning |
 | --- | --- | --- |
-| `calendar_months` *(default)* | `2026-03-01 … 2026-08-31` | 6 whole calendar months ending with the current partial month — matches the documented contract |
-| `rolling` | `2026-02-28 … 2026-08-31` | exactly 6 months back from today, day-clamped for short months |
+| `rolling` *(configured)* | `2026-02-28 … 2026-08-30` | exactly 6 months back from the pull date, day-clamped for short months |
+| `calendar_months` | `2026-03-01 … 2026-08-30` | whole calendar months, ending with the pull date's month |
+
+Combined with `METRICS_PERIOD_ANCHOR=week`, the pull date is the most recent Sunday, so the window
+is a rolling 6 months ending on the day the data was pulled, and it moves once a week.
 
 "Today" resolves in `METRICS_TIMEZONE` (`Asia/Kolkata`), so a request at 01:00 IST does not
 silently use yesterday's UTC date. This matters here: an order stamped

@@ -112,7 +112,7 @@ Invalid values fail fast with a named error; blank values are treated as unset.
 | Variable | Value | Effect if unset |
 | --- | --- | --- |
 | `GOOGLE_CLOUD_PROJECT` | `devx-tsc` | Falls back to the credential's project |
-| `METRICS_PERIOD_ANCHOR` | `month` | Defaults to `day`, which also puts the **current partial month in the window** and breaks agreement with the canonical query |
+| `METRICS_PERIOD_ANCHOR` | `week` | Defaults to `day` — the window would then move daily instead of weekly |
 | `METRICS_CACHE_TTL_SECONDS` | `604800` | Defaults to 300 s |
 | `NODE_ENV` | `production` | Affects logging verbosity only |
 | `CORS_ALLOW_ORIGIN` | your frontend origin | Defaults to `*` |
@@ -188,8 +188,8 @@ Returns the running commit and live configuration. Check all four:
 
 ```json
 { "status": "ready",
-  "deployment": { "commit": "4f7f5ca", "bigQueryLocation": "asia-south1",
-                  "periodAnchor": "month", "credentialSource": "inline_env_json" } }
+  "deployment": { "commit": "b1cd9f2", "bigQueryLocation": "asia-south1",
+                  "periodAnchor": "week", "credentialSource": "inline_env_json" } }
 ```
 
 ```bash
@@ -198,12 +198,13 @@ curl 'https://<app>.vercel.app/api/v1/metrics?pincode=560076'
 
 Golden values, verified against the business's own canonical SQL:
 
+Golden values depend on the window, which moves every Sunday. Reproduce them with the canonical
+query for the window `/health/ready` reports, e.g. for `2026-02-28 .. 2026-08-30`:
+
 | Pincode | AOV | Orders | Total value |
 | --- | --- | --- | --- |
-| 400055 | 26,157.91 | 96 | 2,511,159.29 |
 | 400058 | 40,497.20 | 155 | 6,277,066.76 |
-| 560076 | 24,489.95 | 1,680 | 41,143,120.82 |
-| 411057 | 22,017.69 | 1,446 | 31,837,585.82 |
+| 560076 | 24,595.59 | 1,691 | 41,591,148.82 |
 
 ```bash
 curl 'https://<app>.vercel.app/api/v1/metrics?pincode=ab'      # 400 INVALID_PINCODE
@@ -261,7 +262,7 @@ gcloud run deploy pincode-metrics \
   --source . --region asia-south1 \
   --service-account pincode-metrics@devx-tsc.iam.gserviceaccount.com \
   --min-instances 1 --max-instances 5 --concurrency 40 \
-  --set-env-vars BIGQUERY_LOCATION=asia-south1,GOOGLE_CLOUD_PROJECT=devx-tsc,METRICS_PERIOD_ANCHOR=month,METRICS_CACHE_TTL_SECONDS=604800 \
+  --set-env-vars BIGQUERY_LOCATION=asia-south1,GOOGLE_CLOUD_PROJECT=devx-tsc,METRICS_PERIOD_MODE=rolling,METRICS_PERIOD_ANCHOR=week,METRICS_CACHE_TTL_SECONDS=604800 \
   --no-allow-unauthenticated
 ```
 
@@ -396,8 +397,8 @@ union table is authoritative because it is what the business already reports fro
 - [ ] Service-account key rotated; old key deleted
 - [ ] Authentication in front of the API
 - [ ] CI running typecheck + 155 tests + audit on every push
-- [ ] `/health/ready` reports the expected commit, `asia-south1`, and `month`
-- [ ] Golden values verified: 560076 → AOV 24489.95, 1,680 orders, total 41,143,120.82
+- [ ] `/health/ready` reports the expected commit, `asia-south1`, and `week`
+- [ ] Golden values match the canonical query for the window `/health/ready` reports
 - [ ] `npm audit --omit=dev` clean at high severity
 - [ ] Alerting on 5xx rate and daily bytes scanned
 - [ ] Rollback rehearsed once, deliberately
