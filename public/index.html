@@ -159,11 +159,15 @@
     margin-top: 44px; padding-top: 20px; border-top: 1px solid var(--border);
     text-align: center; display: grid; gap: 5px;
   }
-  footer .credit { font-size: 13px; color: var(--text-muted); }
-  footer .credit strong { font-weight: 600; color: var(--text); }
-  footer .credit .role {
-    font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
-    color: var(--text-faint); margin-left: 2px;
+  footer .credit {
+    font-size: 22px; font-weight: 650; letter-spacing: -.015em;
+    color: var(--text); line-height: 1.25;
+  }
+  @media (max-width: 620px) { footer .credit { font-size: 19px; } }
+  footer .credit .lead { color: var(--text-faint); font-weight: 500; }
+  footer .role {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .09em;
+    color: var(--text-faint); margin-top: 4px;
   }
   footer .src { font-size: 12.5px; color: var(--text-faint); }
   footer a { color: inherit; }
@@ -244,7 +248,8 @@
   </div>
 
   <footer>
-    <div class="credit">Powered by <strong>Dhruv Gohil</strong> <span class="role">Product Manager</span></div>
+    <div class="credit"><span class="lead">Product by</span> Dhruv Gohil</div>
+    <div class="role">Product Manager</div>
     <div class="src">Data from Google BigQuery · <a href="/health/ready">service status</a></div>
   </footer>
 </div>
