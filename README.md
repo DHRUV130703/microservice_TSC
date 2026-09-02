@@ -947,3 +947,4 @@ docs/REQUIREMENTS.md                        the original brief
 scripts/print-generated-sql.ts              renders production SQL from the mapping, offline
 tests/                                      106 tests, BigQuery mocked
 ```
+# microservice_TSC
