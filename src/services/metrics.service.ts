@@ -222,6 +222,10 @@ export function describeDefinitions(mapping: SchemaMapping, window: DateWindow):
       `[${leads.conversion.convertedStatuses.join(', ')}]`;
   } else if (leads.conversion.strategy === 'boolean_flag') {
     convertedClause = `a lead is converted when ${leads.conversion.column} is TRUE`;
+  } else if (leads.conversion.strategy === 'column_threshold') {
+    const symbol = { gt: '>', gte: '>=', eq: '=', lt: '<', lte: '<=' }[leads.conversion.operator];
+    convertedClause =
+      `a lead is converted when ${leads.conversion.column} ${symbol} ${leads.conversion.value}`;
   } else {
     convertedClause =
       `a lead is converted when a qualifying order shares its ${leads.columns.joinKey} ` +

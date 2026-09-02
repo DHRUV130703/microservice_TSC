@@ -206,6 +206,17 @@ const leadsSchema = z.object({
       column: identifier,
     }),
     z.object({
+      strategy: z.literal('column_threshold'),
+      /**
+       * Numeric column on the lead row that counts conversions, e.g. an
+       * order-count rollup. A lead is converted when the comparison holds.
+       * This needs no join: the lead table already carries the outcome.
+       */
+      column: identifier,
+      operator: z.enum(['gt', 'gte', 'eq', 'lt', 'lte']).default('gt'),
+      value: z.number().default(0),
+    }),
+    z.object({
       strategy: z.literal('join_orders'),
       /**
        * Require the matching order to fall inside the reporting window too.
@@ -340,7 +351,10 @@ function assertConsistent(mapping: SchemaMapping): void {
         'leads.conversion: strategy "status_flag" needs either leads.conversion.column or leads.columns.status',
       );
     }
-  } else if (mapping.leads.conversion.strategy === 'boolean_flag') {
+  } else if (
+    mapping.leads.conversion.strategy === 'boolean_flag' ||
+    mapping.leads.conversion.strategy === 'column_threshold'
+  ) {
     // The column is required by the shape; nothing further to cross-check.
   } else {
     if (!mapping.leads.columns.joinKey) {

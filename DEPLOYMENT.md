@@ -203,9 +203,10 @@ query for the window `/health/ready` reports, e.g. for `2026-02-28 .. 2026-08-30
 
 | Pincode | AOV | Orders | Total value | Leads | Converted | Rate |
 | --- | --- | --- | --- | --- | --- | --- |
-| 400058 | 40,497.20 | 155 | 6,277,066.76 | 190 | 6 | 3.16% |
-| 560076 | 24,595.59 | 1,691 | 41,591,148.82 | 2,997 | 537 | 17.92% |
-| 411057 | 22,017.69 | 1,446 | 31,837,585.82 | 3,533 | 458 | 12.96% |
+| 400058 | 40,497.20 | 155 | 6,277,066.76 | 155 | 8 | 5.16% |
+| 400092 | — | — | — | 1,431 | 402 | 28.09% |
+| 560076 | 24,595.59 | 1,691 | 41,591,148.82 | 2,762 | 963 | 34.87% |
+| 411057 | 22,017.69 | 1,446 | 31,837,585.82 | 3,176 | 563 | 17.73% |
 
 ```bash
 curl 'https://<app>.vercel.app/api/v1/metrics?pincode=ab'      # 400 INVALID_PINCODE
@@ -362,10 +363,20 @@ and needs the data team.
 
 These are properties of the source data, not bugs, and consumers should know them.
 
-**Conversion rate is a lower bound.** In `temp.source_wise_funnel`, 1,887,942 of 3,664,379 leads
-(52%) carry no pincode at all, so the denominator only ever counts leads whose pincode was
-captured. A lead recorded under a different pincode, or none, is invisible. The UI warns when the
-cohort is thin and refuses to print a percentage below 30 leads.
+**Conversion comes off the lead row, not from a join.** A lead counts as converted when
+`Total_Orders > 0` in `temp.source_wise_funnel`. No order table is consulted, so a lead who
+ordered from a different pincode or a different phone still counts — which is why this reads far
+higher than the phone-join definition it replaced (34.87% against 17.92% for 560076). The join
+variant is kept as `config/schema.mapping.phonejoin.json`.
+
+**The cohort filter does heavy lifting.** `mapping IN ('Ho','Store')` excludes 1,072,364 `Test`
+leads plus `Support`, `BD`, `Progressive` and NULL — 1.14 M of 3.66 M rows. If that column's
+vocabulary ever changes, the denominator moves silently. Re-check it with
+`SELECT mapping, COUNT(*) FROM temp.source_wise_funnel GROUP BY 1`.
+
+**Pincode coverage still bounds the denominator.** 1,887,942 of 3,664,379 leads (52%) carry no
+pincode, so only leads whose pincode was captured are counted. The UI warns when a cohort is thin
+and refuses to print a percentage below 30 leads.
 
 **A production metric depends on the `temp` dataset.** Leads come from
 `temp.source_wise_funnel`, which is the business's canonical source for the conversion query but

@@ -326,3 +326,55 @@ describe('metrics query builder — deterministic deduplication (regression)', (
     expect(JSON.stringify(a.params)).toBe(JSON.stringify(b.params));
   });
 });
+
+describe('metrics query builder — column_threshold conversion', () => {
+  /**
+   * The canonical conversion query reads the outcome straight off the lead row
+   * (`Total_Orders > 0`) rather than joining to orders, and restricts the
+   * cohort with `mapping IN ('Ho','Store')`.
+   */
+  const mapping = schemaMappingSchema.parse({
+    ...joinOrdersMapping,
+    leads: {
+      ...joinOrdersMapping.leads,
+      columnFilters: [{ column: 'mapping', operator: 'in', values: ['Ho', 'Store'] }],
+      conversion: { strategy: 'column_threshold', column: 'Total_Orders', operator: 'gt', value: 0 },
+    },
+  });
+
+  it('reads the conversion flag off the lead row, with no join to orders', () => {
+    const { sql, params } = buildMetricsQuery(mapping, '400058', window);
+    expect(sql).toContain('COALESCE(`l`.`Total_Orders`, 0) > @convertedThreshold AS is_converted');
+    expect(params.convertedThreshold).toBe(0);
+    expect(sql).not.toContain('order_join_keys');
+    expect(sql).not.toContain('LEFT JOIN');
+  });
+
+  it('treats a NULL count as not converted', () => {
+    expect(buildMetricsQuery(mapping, '400058', window).sql).toContain('COALESCE(`l`.`Total_Orders`, 0)');
+  });
+
+  it('applies the cohort filter as a bound parameter', () => {
+    const { sql, params } = buildMetricsQuery(mapping, '400058', window);
+    expect(sql).toContain('IN UNNEST(@leadsFilter0)');
+    expect(params.leadsFilter0).toEqual(['ho', 'store']);
+    expect(sql).not.toContain("'Ho'");
+  });
+
+  it('supports the other comparison operators', () => {
+    for (const [op, symbol] of [['gte', '>='], ['eq', '='], ['lt', '<'], ['lte', '<=']] as const) {
+      const m = schemaMappingSchema.parse({
+        ...mapping,
+        leads: { ...mapping.leads, conversion: { strategy: 'column_threshold', column: 'Total_Orders', operator: op, value: 2 } },
+      });
+      expect(buildMetricsQuery(m, '400058', window).sql).toContain(`, 0) ${symbol} @convertedThreshold`);
+    }
+  });
+
+  it('does not require a joinKey on either side', () => {
+    const m = JSON.parse(JSON.stringify(mapping));
+    delete m.leads.columns.joinKey;
+    delete m.orders.columns.joinKey;
+    expect(() => buildMetricsQuery(schemaMappingSchema.parse(m), '400058', window)).not.toThrow();
+  });
+});

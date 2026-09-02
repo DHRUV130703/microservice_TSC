@@ -191,7 +191,7 @@ function buildLeadsCte(
   const conversionColumn =
     leads.conversion.strategy === 'status_flag'
       ? (leads.conversion.column ?? c.status)
-      : leads.conversion.strategy === 'boolean_flag'
+      : leads.conversion.strategy === 'boolean_flag' || leads.conversion.strategy === 'column_threshold'
         ? leads.conversion.column
         : undefined;
 
@@ -256,6 +256,14 @@ function buildLeadsCte(
     select.push(`${statusExpression(LEADS_ALIAS, conversionColumn, leads.statusCaseInsensitive)} AS lead_status_norm`);
   } else if (leads.conversion.strategy === 'boolean_flag') {
     select.push(`COALESCE(${col(LEADS_ALIAS, leads.conversion.column)}, FALSE) AS is_converted`);
+  } else if (leads.conversion.strategy === 'column_threshold') {
+    const op = { gt: '>', gte: '>=', eq: '=', lt: '<', lte: '<=' }[leads.conversion.operator];
+    // NULL is not a conversion, so COALESCE before comparing.
+    select.push(
+      `COALESCE(${col(LEADS_ALIAS, leads.conversion.column)}, 0) ${op} @convertedThreshold AS is_converted`,
+    );
+    params.convertedThreshold = leads.conversion.value;
+    types.convertedThreshold = 'NUMERIC';
   }
   if (c.joinKey && leads.conversion.strategy === 'join_orders') {
     select.push(
@@ -305,7 +313,7 @@ function buildConversionCte(
     };
   }
 
-  if (leads.conversion.strategy === 'boolean_flag') {
+  if (leads.conversion.strategy === 'boolean_flag' || leads.conversion.strategy === 'column_threshold') {
     return { ctes: '', leadsRelation: 'leads_scoped', convertedPredicate: 'is_converted' };
   }
 

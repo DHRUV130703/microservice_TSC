@@ -2,7 +2,7 @@
   "meta": {
     "discoveredAt": "2026-08-31",
     "project": "devx-tsc",
-    "notes": "Every metric reproduces a canonical query supplied by the business. ORDERS: view_reports.oms_sales_union, date window only, no status or validity filters, no deduplication; total order value = SUM(sales); AOV = SUM(sales)/COUNT(DISTINCT order_id) (aovMethod total_over_orders). LEADS: temp.source_wise_funnel, one row per phone, pincode column `pincodes`, cohort anchored on created_on. Conversion joins the lead's phone to oms_sales_union.shipping_phone, both normalised to the last 10 digits, restricted to the SAME pincode and the same window. WINDOW: rolling 6 months ending on the pull date; METRICS_PERIOD_ANCHOR=week advances the pull date weekly, so the window follows the refresh cadence. NOTE: source_wise_funnel lives in the `temp` dataset -- a production metric depends on a table in a scratch namespace. view_reports.lead_base is the equivalent in a stable dataset and gives a slightly larger denominator (3,030 vs 2,997 leads for 560076); see config/schema.mapping.lead-base.json."
+    "notes": "Every metric reproduces a canonical query supplied by the business. ORDERS: view_reports.oms_sales_union, date window only, no status or validity filters, no deduplication; total order value = SUM(sales); AOV = SUM(sales)/COUNT(DISTINCT order_id). LEADS: temp.source_wise_funnel, one row per phone, pincode column `pincodes`, cohort anchored on created_on, restricted to mapping IN ('Ho','Store') -- which excludes 1,072,364 'Test' leads plus Support, BD, Progressive and NULL. CONVERSION: read straight off the lead row as Total_Orders > 0; no join to orders is involved, so a lead who ordered from any pincode or phone still counts. The previous phone-join definition is kept as config/schema.mapping.phonejoin.json. WINDOW: rolling 6 months ending on the pull date; METRICS_PERIOD_ANCHOR=week advances the pull date weekly, so the window follows the refresh cadence. NOTE: source_wise_funnel lives in the `temp` dataset, so a production metric depends on a scratch namespace."
   },
   "orders": {
     "source": {
@@ -13,8 +13,7 @@
       "orderId": "order_id",
       "pincode": "shipping_pincode",
       "orderDate": "date",
-      "orderValue": "sales",
-      "joinKey": "shipping_phone"
+      "orderValue": "sales"
     },
     "orderDateType": "DATE",
     "pincodeMatch": {
@@ -42,8 +41,7 @@
     "columns": {
       "leadId": "phone",
       "pincode": "pincodes",
-      "createdAt": "created_on",
-      "joinKey": "phone"
+      "createdAt": "created_on"
     },
     "createdAtType": "DATE",
     "pincodeMatch": {
@@ -53,17 +51,27 @@
       "stripCharacters": ""
     },
     "excludeStatuses": [],
-    "columnFilters": [],
+    "columnFilters": [
+      {
+        "column": "mapping",
+        "operator": "in",
+        "values": [
+          "Ho",
+          "Store"
+        ],
+        "caseInsensitive": true,
+        "treatNullAsExcluded": false
+      }
+    ],
     "booleanFlags": {
       "excludeWhenTrue": [],
       "requireTrue": []
     },
     "conversion": {
-      "strategy": "join_orders",
-      "orderWithinPeriod": true,
-      "normalizeJoinKey": true,
-      "joinKeyStripCharacters": "+-() ",
-      "joinKeyLastCharacters": 10
+      "strategy": "column_threshold",
+      "column": "Total_Orders",
+      "operator": "gt",
+      "value": 0
     }
   }
 }
