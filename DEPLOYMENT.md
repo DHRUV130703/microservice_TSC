@@ -11,7 +11,7 @@
 
 The service is a small, well-tested read-only API: **~3,000 lines of source, 152 passing tests,
 one BigQuery job per request**. It is stateless apart from an in-process cache, has no database
-of its own, and its only downstream dependency is BigQuery (`view_reports.oms_sales_union` for orders, `view_reports.lead_base` for leads).
+of its own, and its only downstream dependency is BigQuery (`view_reports.oms_sales_union` for orders, `temp.source_wise_funnel` for leads).
 
 That makes it easy to deploy. The risk is not the code — it is the operational surface around it:
 
@@ -201,10 +201,11 @@ Golden values, verified against the business's own canonical SQL:
 Golden values depend on the window, which moves every Sunday. Reproduce them with the canonical
 query for the window `/health/ready` reports, e.g. for `2026-02-28 .. 2026-08-30`:
 
-| Pincode | AOV | Orders | Total value |
-| --- | --- | --- | --- |
-| 400058 | 40,497.20 | 155 | 6,277,066.76 |
-| 560076 | 24,595.59 | 1,691 | 41,591,148.82 |
+| Pincode | AOV | Orders | Total value | Leads | Converted | Rate |
+| --- | --- | --- | --- | --- | --- | --- |
+| 400058 | 40,497.20 | 155 | 6,277,066.76 | 190 | 6 | 3.16% |
+| 560076 | 24,595.59 | 1,691 | 41,591,148.82 | 2,997 | 537 | 17.92% |
+| 411057 | 22,017.69 | 1,446 | 31,837,585.82 | 3,533 | 458 | 12.96% |
 
 ```bash
 curl 'https://<app>.vercel.app/api/v1/metrics?pincode=ab'      # 400 INVALID_PINCODE
@@ -361,14 +362,18 @@ and needs the data team.
 
 These are properties of the source data, not bugs, and consumers should know them.
 
-**Conversion rate is a lower bound.** Roughly 40% of leads carry no pincode. For pincode 400058
-only 194 leads carry that pincode against 174 orders shipped there — 103 of 143 buying phone
-numbers are known leads, but only 9 are recorded under 400058. The UI shows a warning when the
-lead cohort is thin, and refuses to print a percentage below 30 leads.
+**Conversion rate is a lower bound.** In `temp.source_wise_funnel`, 1,887,942 of 3,664,379 leads
+(52%) carry no pincode at all, so the denominator only ever counts leads whose pincode was
+captured. A lead recorded under a different pincode, or none, is invisible. The UI warns when the
+cohort is thin and refuses to print a percentage below 30 leads.
 
-**Conversion definitions disagree.** Order-backed matching (the default) and the CRM's own
-`prospect_stage` (`config/schema.mapping.lsq-status.json`) give materially different answers. The
-definition in force is returned in every response under `data.definitions`.
+**A production metric depends on the `temp` dataset.** Leads come from
+`temp.source_wise_funnel`, which is the business's canonical source for the conversion query but
+sits in a scratch namespace with no stability guarantee. If it is ever dropped or rebuilt,
+conversion rate breaks while AOV keeps working — an asymmetric failure that will look confusing.
+`config/schema.mapping.lead-base.json` swaps in `view_reports.lead_base`, in a stable dataset,
+at the cost of a slightly larger denominator (3,030 vs 2,997 leads for 560076). Worth asking the
+data team to promote `source_wise_funnel` into `view_reports`.
 
 **The warehouse migrated mid-window.** `production.fact_order_item` stopped receiving retail-store
 orders on 2026-05-24 — every named store shows zero orders after that date, and AOV in the tail
