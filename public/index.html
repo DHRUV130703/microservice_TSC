@@ -160,14 +160,14 @@
     text-align: center; display: grid; gap: 5px;
   }
   footer .credit {
-    font-size: 22px; font-weight: 650; letter-spacing: -.015em;
-    color: var(--text); line-height: 1.25;
+    font-size: 30px; font-weight: 680; letter-spacing: -.02em;
+    color: var(--text); line-height: 1.2;
   }
-  @media (max-width: 620px) { footer .credit { font-size: 19px; } }
+  @media (max-width: 620px) { footer .credit { font-size: 24px; } }
   footer .credit .lead { color: var(--text-faint); font-weight: 500; }
   footer .role {
-    font-size: 11px; text-transform: uppercase; letter-spacing: .09em;
-    color: var(--text-faint); margin-top: 4px;
+    font-size: 12px; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--text-faint); margin-top: 6px;
   }
   footer .src { font-size: 12.5px; color: var(--text-faint); }
   footer a { color: inherit; }
@@ -381,7 +381,6 @@
         return;
       }
       render(body);
-      history.replaceState(null, '', '?pincode=' + encodeURIComponent(pincode));
     } catch (e) {
       fail('Could not reach the metrics service. Is it running on this host?');
     } finally {
@@ -404,9 +403,14 @@
     });
   });
 
-  // Deep link support: /?pincode=400092
+  // A shared /?pincode=400092 link still works, but the query is cleared from
+  // the address bar so what people see and copy is just the app's own URL.
   var initial = new URLSearchParams(location.search).get('pincode');
-  if (initial) { input.value = initial; lookup(initial); }
+  if (initial) {
+    input.value = initial;
+    history.replaceState(null, '', location.pathname);
+    lookup(initial);
+  }
   input.focus();
 })();
 </script>
