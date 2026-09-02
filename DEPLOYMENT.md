@@ -339,6 +339,13 @@ and on BigQuery bytes-scanned per day exceeding a threshold — the last is the 
 
 ---
 
+**Run the function in the same region as the data.** `vercel.json` pins `regions: ["bom1"]`
+(Mumbai) to match the `asia-south1` datasets. Vercel defaulted to `iad1` (US East), which sent
+every query across the planet: mean response fell from ~3,400 ms to ~2,390 ms after the move, and
+the cold-start window — where a slow round trip can surface as
+`UPSTREAM_ERROR: The analytics backend is currently unavailable` — shrank with it. If the
+datasets are ever moved, move this too.
+
 ## 9. Cost model
 
 Per request: **~112 MB scanned ≈ $0.0006** at $6.25/TB. Query cost is flat across pincodes because
