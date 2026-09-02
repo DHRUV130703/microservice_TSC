@@ -2,7 +2,7 @@
   "meta": {
     "discoveredAt": "2026-08-31",
     "project": "devx-tsc",
-    "notes": "Orders come from view_reports.oms_sales_union, the table the business uses for its own sales reporting. Filters match the canonical query exactly: date window only, no status or validity filters, no deduplication (SUM(sales) on this table matches per-order aggregation, so there is no row duplication to remove). Set METRICS_PERIOD_ANCHOR=month so the window is the last 6 COMPLETE calendar months, reproducing `date >= '2026-03-01' AND date < '2026-09-01'`. aovMethod is 'average_of_rows' to reproduce the canonical AVG(sales) query -- note this is the average LINE ITEM value (1.75 rows per order), not the average order value, and reads 35-55% lower than SUM(sales)/COUNT(DISTINCT order_id). Switch to 'total_over_orders' for true AOV. The previous mapping against view_reports.oms_sales_raw_optimized is kept as config/schema.mapping.oms-raw.json."
+    "notes": "Orders come from view_reports.oms_sales_union, the table the business uses for its own sales reporting. Filters match the canonical queries exactly: date window only, no status or validity filters, no deduplication (SUM(sales) on this table agrees with per-order aggregation, so there is no row duplication to remove). METRICS_PERIOD_ANCHOR=month makes the window the last 6 COMPLETE calendar months, reproducing `date BETWEEN '2026-03-01' AND '2026-08-31'`. aovMethod is 'total_over_orders' -> SUM(sales)/COUNT(DISTINCT order_id), per the canonical AOV query. Note this table carries ~1.75 rows per order, so AVG(sales) would give the average LINE ITEM value instead and read 35-55% lower; it is still returned as supporting.averageRowValue. The previous mapping against view_reports.oms_sales_raw_optimized is kept as config/schema.mapping.oms-raw.json."
   },
   "orders": {
     "source": {
@@ -32,7 +32,7 @@
       "requireTrue": []
     },
     "requirePositiveValue": false,
-    "aovMethod": "average_of_rows"
+    "aovMethod": "total_over_orders"
   },
   "leads": {
     "source": {

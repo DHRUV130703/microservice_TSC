@@ -198,11 +198,12 @@ curl 'https://<app>.vercel.app/api/v1/metrics?pincode=560076'
 
 Golden values, verified against the business's own canonical SQL:
 
-| Pincode | AOV | Conversion | Orders | Total value |
-| --- | --- | --- | --- | --- |
-| 400055 | 16,412.81 | 1.59% | 96 | 2,511,159.29 |
-| 400058 | 18,516.42 | 3.59% | 154 | 6,277,065.76 |
-| 560076 | 16,052.48 | 17.52% | 1,677 | 41,126,448.82 |
+| Pincode | AOV | Orders | Total value |
+| --- | --- | --- | --- |
+| 400055 | 26,157.91 | 96 | 2,511,159.29 |
+| 400058 | 40,497.20 | 155 | 6,277,066.76 |
+| 560076 | 24,489.95 | 1,680 | 41,143,120.82 |
+| 411057 | 22,017.69 | 1,446 | 31,837,585.82 |
 
 ```bash
 curl 'https://<app>.vercel.app/api/v1/metrics?pincode=ab'      # 400 INVALID_PINCODE
@@ -374,12 +375,13 @@ months collapsed from ₹35,000 to ₹19,000 as higher-value retail sales vanish
 spanning that date against the old table silently under-reports by ~80%. If order counts drop
 sharply again, look for another migration before suspecting the code.
 
-**"Average Order Value" is currently the average LINE ITEM value.** `oms_sales_union` carries
-~1.75 rows per order, so the configured `AVG(sales)` reads 35–55% below true AOV — ₹16,052 against
-₹24,524 for 560076. This reproduces the business's existing query deliberately. Every response
-carries both readings (`supporting.averageRowValue`, `totalOrderValue`/`totalOrders`) and
-`definitions.averageOrderValue` names the one in force. Flip `orders.aovMethod` to
-`total_over_orders` for the per-order figure.
+**AOV is `SUM(sales) / COUNT(DISTINCT order_id)`** — the true average per order, matching the
+business's canonical query (`orders.aovMethod: total_over_orders`).
+
+Beware the alternative: `AVG(sales)` over the same table reads 25–55% lower, because
+`oms_sales_union` carries ~1.75 rows per order and so averages LINE ITEMS, not orders. It is
+still returned as `supporting.averageRowValue` for comparison, and
+`definitions.averageOrderValue` always states which reading produced the headline figure.
 
 **Table choice is load-bearing.** `oms_sales_union` is the business's reporting table and carries
 no status or validity columns, so no rows are excluded. The stricter alternative
@@ -395,7 +397,7 @@ union table is authoritative because it is what the business already reports fro
 - [ ] Authentication in front of the API
 - [ ] CI running typecheck + 155 tests + audit on every push
 - [ ] `/health/ready` reports the expected commit, `asia-south1`, and `month`
-- [ ] Golden values verified: 560076 → AOV 16052.48, CR 17.52, 1,677 orders
+- [ ] Golden values verified: 560076 → AOV 24489.95, 1,680 orders, total 41,143,120.82
 - [ ] `npm audit --omit=dev` clean at high severity
 - [ ] Alerting on 5xx rate and daily bytes scanned
 - [ ] Rollback rehearsed once, deliberately
