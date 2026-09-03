@@ -33,6 +33,7 @@ Returns Average Order Value and Conversion Rate for one pincode over the last 6 
 | `pincode` | string | Yes | Pincode for which metrics are required. Trimmed. Validated against `PINCODE_PATTERN` (default: 3–12 characters of `A–Z a–z 0–9`, space, hyphen). Not restricted to 6 Indian digits. |
 | `from` | string `YYYY-MM-DD` | No | Inclusive start of the reporting window. |
 | `to` | string `YYYY-MM-DD` | No | Inclusive end of the reporting window. |
+| `stores` | boolean | No | Defaults to `true`. Set `false` to skip the nearest-store lookup and avoid the upstream call. |
 
 **Date behaviour**
 
@@ -149,10 +150,53 @@ Body limit: 16 kB.
 | `data.meta.fetchedAt` | ISO 8601 | When the numbers were last computed from BigQuery |
 | `data.meta.ageSeconds` | number | Age of the underlying BigQuery result; `0` on a fresh fetch |
 | `data.meta.bytesProcessed` | number? | BigQuery bytes processed; absent on cached responses |
+| `data.nearestStore` | object \| null | Closest store with its landmark details. See below |
+| `data.meta.storeLookup` | `ok` \| `unavailable` \| `skipped` | Disambiguates a `null` store |
 | `message` | string? | Present only when there is no data |
 
 Both metrics are `null`, never `NaN` or `Infinity`, when their denominator is zero — always
 null-check before formatting.
+
+---
+
+### `nearestStore`
+
+The metrics response carries the closest physical store, with the landmark details from the store
+spreadsheet — the same object the `/api/v1/stores` endpoint returns as `nearest`:
+
+```json
+"nearestStore": {
+  "storeId": "TSC102",
+  "shortCode": "Shimpoli Road",
+  "city": "Mumbai",
+  "distanceKm": 0.6,
+  "address": "G-50, Satra Park, Shimpoli Road, Borivali West, Mumbai - 400092.",
+  "contact": "9811981911",
+  "timings": "11AM to 9:30PM, Mon - Sun",
+  "rating": "4.9",
+  "mapLink": "https://maps.app.goo.gl/TP95qrC8Eb24TuTk9",
+  "landmark": {
+    "detail": "At Satra Park, Shimpoli Road, in Borivali West. PIN 400092.",
+    "businessAddress": "G-50, Satra Park, Shimpoli Road, Borivali West, Mumbai, Maharashtra",
+    "mapUrl": "https://maps.google.com/maps?cid=349284784676271146",
+    "storeName": "Borivali_Mumbai",
+    "pincode": "400092"
+  }
+},
+"meta": { "storeLookup": "ok" }
+```
+
+Three things worth relying on:
+
+- **It costs no extra latency.** The store lookup runs concurrently with the BigQuery query, not
+  after it.
+- **It cannot break your metrics.** A locator outage yields `nearestStore: null` with
+  `meta.storeLookup: "unavailable"` and a normal `200`; the metrics are unaffected.
+- **`null` is never ambiguous.** `storeLookup: "ok"` with a null store means the locator genuinely
+  found nothing nearby; `"unavailable"` means the lookup failed; `"skipped"` means you passed
+  `stores=false`.
+
+Use `/api/v1/stores` instead when you want several nearby stores rather than just the closest.
 
 ---
 

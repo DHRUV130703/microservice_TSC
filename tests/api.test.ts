@@ -363,3 +363,107 @@ describe('custom date range via the API', () => {
     expect(res.body.error.code).toBe(ErrorCode.INVALID_PINCODE);
   });
 });
+
+describe('nearest store inside the metrics response', () => {
+  const nearby = {
+    storeId: 'TSC118', storeName: 'The Sleep Company Experience Store - Malad',
+    shortCode: 'Malad West', city: 'Mumbai', pincode: '400064', distanceKm: 2.4,
+    address: '269-A/3, Solitaire II, Malad West', contact: '9811981911',
+    timings: '11AM to 9:30PM, Mon - Sun', rating: '4.9', reviewCount: '539',
+    parking: 'Valet Parking', mapLink: 'https://maps.app.goo.gl/x',
+    storeUrl: 'https://thesleepcompany.in/x', latitude: '19.18', longitude: '72.83',
+    comingSoon: false,
+    landmark: {
+      detail: 'Opposite Infinity Mall, Malad West — 1st floor. PIN 400064.',
+      businessAddress: '269-A/3, Solitaire II', mapUrl: 'https://maps.google.com/maps?cid=1',
+      storeName: 'Malad_Mumbai', pincode: '400064',
+    },
+  };
+
+  const storesStub = (impl: () => Promise<unknown>) =>
+    ({ getStores: impl } as never);
+
+  const appWithStores = (impl: () => Promise<unknown>) =>
+    createApp({
+      metricsController: new MetricsController(
+        new MetricsService(healthyRepo, joinOrdersMapping),
+        storesStub(impl),
+      ),
+    });
+
+  it('includes the nearest store with its landmark', async () => {
+    const res = await request(
+      appWithStores(async () => ({ payload: { nearest: nearby, stores: [nearby] } })),
+    ).get('/api/v1/metrics?pincode=400092');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.nearestStore).toMatchObject({ storeId: 'TSC118', distanceKm: 2.4 });
+    expect(res.body.data.nearestStore.landmark.detail).toMatch(/Opposite Infinity Mall/);
+    expect(res.body.data.meta.storeLookup).toBe('ok');
+    // Metrics must be untouched by the addition.
+    expect(res.body.data.metrics.averageOrderValue).toBe(18_500);
+  });
+
+  it('still returns metrics when the store lookup fails', async () => {
+    const res = await request(
+      appWithStores(async () => { throw new Error('locator down'); }),
+    ).get('/api/v1/metrics?pincode=400092');
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.metrics.averageOrderValue).toBe(18_500);
+    expect(res.body.data.nearestStore).toBeNull();
+    expect(res.body.data.meta.storeLookup).toBe('unavailable');
+  });
+
+  it('distinguishes "no store nearby" from "lookup failed"', async () => {
+    const res = await request(
+      appWithStores(async () => ({ payload: { nearest: null, stores: [] } })),
+    ).get('/api/v1/metrics?pincode=400092');
+    expect(res.body.data.nearestStore).toBeNull();
+    expect(res.body.data.meta.storeLookup).toBe('ok');
+  });
+
+  it('skips the lookup entirely on stores=false', async () => {
+    let called = false;
+    const res = await request(
+      appWithStores(async () => { called = true; return { payload: { nearest: nearby, stores: [nearby] } }; }),
+    ).get('/api/v1/metrics?pincode=400092&stores=false');
+
+    expect(called).toBe(false);
+    expect(res.body.data.nearestStore).toBeNull();
+    expect(res.body.data.meta.storeLookup).toBe('skipped');
+  });
+
+  it('runs the two upstreams concurrently rather than in series', async () => {
+    const slow = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const repo = {
+      async fetchMetrics() {
+        await slow(120);
+        return { totalOrders: 1, totalOrderValue: 1, totalLeads: 1, convertedLeads: 1 };
+      },
+    };
+    const app = createApp({
+      metricsController: new MetricsController(
+        new MetricsService(repo, joinOrdersMapping),
+        storesStub(async () => { await slow(120); return { payload: { nearest: nearby, stores: [nearby] } }; }),
+      ),
+    });
+
+    const started = Date.now();
+    const res = await request(app).get('/api/v1/metrics?pincode=400092');
+    const elapsed = Date.now() - started;
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.nearestStore.storeId).toBe('TSC118');
+    // Serial would be >=240ms; parallel should land near 120ms.
+    expect(elapsed).toBeLessThan(220);
+  });
+
+  it('does not leak the locator API key when the lookup fails', async () => {
+    const res = await request(
+      appWithStores(async () => { throw new Error('x-api-key: SUPERSECRET rejected'); }),
+    ).get('/api/v1/metrics?pincode=400092');
+    expect(JSON.stringify(res.body)).not.toContain('SUPERSECRET');
+  });
+});

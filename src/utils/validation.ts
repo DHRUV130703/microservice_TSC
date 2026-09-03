@@ -36,6 +36,15 @@ export const metricsRequestSchema = z.object({
   pincode: pincodeSchema,
   from: isoDateSchema.optional(),
   to: isoDateSchema.optional(),
+  /**
+   * Set false to skip the nearest-store lookup. Defaults to true; the lookup
+   * runs in parallel with the metrics query, so it costs no extra latency, but
+   * a caller that does not need it can avoid the upstream call entirely.
+   */
+  stores: z
+    .union([z.boolean(), z.enum(['true', 'false', '1', '0'])])
+    .transform((v) => (typeof v === 'boolean' ? v : v === 'true' || v === '1'))
+    .optional(),
 });
 
 export type MetricsRequest = z.infer<typeof metricsRequestSchema>;

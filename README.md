@@ -364,6 +364,12 @@ Both are supported. `GET` is the primary contract: the operation is a pure, cach
 | `pincode` | string | Yes | Pincode to report on. Trimmed. Validated against `PINCODE_PATTERN` (default: 3–12 alphanumerics, spaces, hyphens — deliberately **not** locked to 6 Indian digits). |
 | `from` | string | No | Inclusive window start, `YYYY-MM-DD`. Defaults to the rolling 6-month window. |
 | `to` | string | No | Inclusive window end, `YYYY-MM-DD`. Defaults to the weekly pull date. |
+| `stores` | boolean | No | Defaults to `true`. `false` skips the nearest-store lookup. |
+
+The metrics response also carries `data.nearestStore` — the closest physical store with its
+landmark details, resolved concurrently with the BigQuery query so it adds no latency, and
+fail-soft so a locator outage cannot deny you the metrics (`meta.storeLookup` says which
+happened).
 
 ### `GET /api/v1/stores?pincode={pincode}&limit={n}`
 

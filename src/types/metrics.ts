@@ -1,4 +1,5 @@
 import type { DateWindow } from '../utils/date.js';
+import type { NearbyStore } from './stores.js';
 
 /** Raw single-row aggregate returned by the BigQuery repository. */
 export interface RawMetricsRow {
@@ -45,6 +46,12 @@ export interface MetricsPayload {
     /** Average value per row. On a line-item table, the average item value. */
     averageRowValue: number | null;
   };
+  /**
+   * Closest physical store to the pincode, with its landmark details. Resolved
+   * from a separate upstream in parallel with the metrics query, so it is
+   * best-effort: `null` here is disambiguated by `meta.storeLookup`.
+   */
+  nearestStore?: NearbyStore | null;
   /** Machine-readable statement of how each metric was computed. */
   definitions: {
     averageOrderValue: string;
@@ -60,6 +67,14 @@ export interface MetricsPayload {
     ageSeconds: number;
     /** BigQuery bytes processed. Retained on cached responses. */
     bytesProcessed?: number;
+    /**
+     * Outcome of the store lookup, so `nearestStore: null` is never ambiguous.
+     *  - ok          : the lookup ran; `nearestStore` is the answer, possibly null
+     *                  because the locator genuinely found no store nearby
+     *  - unavailable : the lookup failed; metrics are unaffected
+     *  - skipped     : the caller passed stores=false
+     */
+    storeLookup?: 'ok' | 'unavailable' | 'skipped';
   };
 }
 
