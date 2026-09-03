@@ -62,6 +62,13 @@ const envSchema = z.object({
   PINCODE_PATTERN: z.string().min(1).default('^[A-Za-z0-9][A-Za-z0-9 -]{2,11}$'),
 
   /**
+   * Widest custom range a caller may request, in days. Guards BigQuery spend:
+   * without it one request could scan the whole table. Generous by default,
+   * about three years.
+   */
+  METRICS_MAX_RANGE_DAYS: z.coerce.number().int().positive().max(36500).default(1095),
+
+  /**
    * In-process response cache TTL in seconds. 0 disables caching.
    * Cap it at or below the anchor interval; a longer TTL cannot outlive the
    * window change that rotates the cache key.

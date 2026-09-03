@@ -30,7 +30,22 @@ Returns Average Order Value and Conversion Rate for one pincode over the last 6 
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `pincode` | string | Yes | Pincode for which metrics are required. Leading/trailing whitespace is trimmed. Must match `PINCODE_PATTERN` (default: 3–12 characters of `A–Z a–z 0–9`, space, hyphen, starting alphanumeric). Not restricted to 6 Indian digits. |
+| `pincode` | string | Yes | Pincode for which metrics are required. Trimmed. Validated against `PINCODE_PATTERN` (default: 3–12 characters of `A–Z a–z 0–9`, space, hyphen). Not restricted to 6 Indian digits. |
+| `from` | string `YYYY-MM-DD` | No | Inclusive start of the reporting window. |
+| `to` | string `YYYY-MM-DD` | No | Inclusive end of the reporting window. |
+
+**Date behaviour**
+
+- Omit both and the window is the configured default — a rolling 6 months ending on the weekly
+  pull date. This is unchanged for existing callers.
+- Supply both and they are used verbatim.
+- Supply only `from` and the window ends at the default end date.
+- Supply only `to` and the configured span is measured back from it.
+- Blank values (`?from=&to=`) count as absent.
+- Both bounds are inclusive, and are interpreted as plain dates in `METRICS_TIMEZONE`
+  (`Asia/Kolkata`) — identically to the default window, so a custom range and the default range
+  are measured the same way.
+- The response always echoes the window actually used, with `source: "custom"` or `"default"`.
 
 ### Example
 
@@ -38,7 +53,13 @@ Returns Average Order Value and Conversion Rate for one pincode over the last 6 
 curl "http://localhost:3000/api/v1/metrics?pincode=400092"
 ```
 
-The response below is a verbatim capture of that call.
+With an explicit range:
+
+```bash
+curl "http://localhost:3000/api/v1/metrics?pincode=400092&from=2026-07-01&to=2026-07-31"
+```
+
+The response below is a verbatim capture of the first call.
 
 ---
 
@@ -109,6 +130,8 @@ Body limit: 16 kB.
 | `data.period.from` / `.to` | string `YYYY-MM-DD` | **Inclusive** window bounds, derived from the clock at request time |
 | `data.period.months` | number | Window length in months (default 6) |
 | `data.period.mode` | `calendar_months` \| `rolling` | How the window was derived |
+| `data.period.days` | number | Inclusive day count of the window |
+| `data.period.source` | `default` \| `custom` | `custom` when the caller supplied `from`/`to`. The four fields below are **absent** for a custom range, because a fixed window does not roll forward |
 | `data.period.anchor` | `day` \| `week` \| `month` | How often the window moves — and therefore how often BigQuery is queried |
 | `data.period.nextRolloverOn` | string `YYYY-MM-DD` | Date the window next moves; until then responses are served from cache |
 | `data.period.timezone` | string | IANA zone used to resolve "today" |

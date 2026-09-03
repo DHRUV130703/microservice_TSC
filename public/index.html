@@ -7,7 +7,7 @@
 <!-- Tab icon is the square mark, cropped from the wordmark: the full lockup is
      illegible at 16px. The in-page header keeps the wordmark. -->
 <link rel="icon" type="image/png" sizes="256x256" href="/icon.png" />
-<meta name="description" content="Average Order Value and Conversion Rate by pincode, last 6 months." />
+<meta name="description" content="Average Order Value and Conversion Rate by pincode, over any date range." />
 <style>
   :root {
     --bg: #f6f7f9;
@@ -96,6 +96,24 @@
   button:hover:not(:disabled) { opacity: .9; }
   button:active:not(:disabled) { transform: translateY(1px); }
   button:disabled { opacity: .55; cursor: default; }
+
+  .dates {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 12px 0 4px;
+  }
+  .dates .f { display: flex; flex-direction: column; gap: 4px; }
+  .dates label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+  .dates input[type="date"] {
+    padding: 9px 11px; font-size: 14px; font-family: inherit; color: var(--text);
+    background: var(--surface); border: 1px solid var(--border-strong);
+    border-radius: 9px; outline: none; color-scheme: light dark;
+  }
+  .dates input[type="date"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .dates .clear {
+    padding: 9px 12px; font-size: 13px; background: none; color: var(--text-muted);
+    border: 1px solid var(--border); border-radius: 9px; cursor: pointer;
+  }
+  .dates .clear:hover { border-color: var(--accent); color: var(--accent); }
+  .dates .hint { font-size: 12px; color: var(--text-faint); align-self: center; }
 
   .examples { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 26px; }
   .examples span { font-size: 13px; color: var(--text-faint); margin-right: 2px; }
@@ -197,7 +215,7 @@
       </picture>
     </div>
     <h1>Pincode Metrics</h1>
-    <p class="sub">Average Order Value and Conversion Rate for the last 6 months.</p>
+    <p class="sub">Average Order Value and Conversion Rate by pincode. Defaults to the last 6 months.</p>
   </header>
 
   <form id="form" autocomplete="off">
@@ -207,6 +225,19 @@
     </div>
     <button id="submit" type="submit">Get metrics</button>
   </form>
+
+  <div class="dates">
+    <div class="f">
+      <label for="from">From</label>
+      <input id="from" type="date" aria-label="From date" />
+    </div>
+    <div class="f">
+      <label for="to">To</label>
+      <input id="to" type="date" aria-label="To date" />
+    </div>
+    <button class="clear" id="clear-dates" type="button">Reset to last 6 months</button>
+    <span class="hint" id="dates-hint">Leave blank for the last 6 months</span>
+  </div>
 
   <div class="examples">
     <span>Try:</span>
@@ -306,7 +337,10 @@
     var d = body.data, m = d.metrics, s = d.supporting, p = d.period;
 
     $('r-pin').textContent = 'Pincode ' + d.pincode;
-    $('r-period').textContent = fmtDate(p.from) + ' – ' + fmtDate(p.to) + ' · ' + p.months + ' months';
+    $('r-period').textContent =
+      fmtDate(p.from) + ' – ' + fmtDate(p.to) + ' · ' +
+      (p.source === 'custom' ? p.days + (p.days === 1 ? ' day' : ' days') + ' (custom range)'
+                             : p.months + ' months');
 
     // Headline metrics. null means "no denominator", never zero.
     if (m.averageOrderValue === null) {
@@ -373,7 +407,9 @@
       : '<span><i class="dot fresh"></i>Fresh from BigQuery</span>';
     $('r-meta').innerHTML =
       freshness +
-      '<span>Refreshes ' + p.anchor + 'ly · next on ' + fmtDate(p.nextRolloverOn) + '</span>' +
+      (p.source === 'custom'
+        ? '<span>Fixed range · does not roll forward</span>'
+        : '<span>Refreshes ' + p.anchor + 'ly · next on ' + fmtDate(p.nextRolloverOn) + '</span>') +
       '<span>Timezone <code>' + p.timezone + '</code></span>' +
       (d.meta.bytesProcessed ? '<span>' + (d.meta.bytesProcessed / 1e6).toFixed(1) + ' MB scanned</span>' : '');
 
@@ -385,12 +421,21 @@
     show(elError);
   }
 
-  async function lookup(pincode) {
+  function currentRange() {
+    return { from: $('from').value.trim(), to: $('to').value.trim() };
+  }
+
+  async function lookup(pincode, range) {
     hide(elError); hide(elResults); show(elLoading);
     submit.disabled = true; submit.textContent = 'Loading…';
 
+    var r = range || currentRange();
+    var qs = 'pincode=' + encodeURIComponent(pincode);
+    if (r.from) qs += '&from=' + encodeURIComponent(r.from);
+    if (r.to) qs += '&to=' + encodeURIComponent(r.to);
+
     try {
-      var res = await fetch('/api/v1/metrics?pincode=' + encodeURIComponent(pincode), {
+      var res = await fetch('/api/v1/metrics?' + qs, {
         headers: { Accept: 'application/json' }
       });
       var body = await res.json();
@@ -422,11 +467,27 @@
     });
   });
 
+  $('clear-dates').addEventListener('click', function () {
+    $('from').value = ''; $('to').value = '';
+    if (input.value.trim()) lookup(input.value.trim());
+  });
+
+  // Changing a date re-runs the current pincode, so the numbers on screen never
+  // disagree with the dates shown above them.
+  ['from', 'to'].forEach(function (id) {
+    $(id).addEventListener('change', function () {
+      if (input.value.trim()) lookup(input.value.trim());
+    });
+  });
+
   // A shared /?pincode=400092 link still works, but the query is cleared from
   // the address bar so what people see and copy is just the app's own URL.
-  var initial = new URLSearchParams(location.search).get('pincode');
+  var params = new URLSearchParams(location.search);
+  var initial = params.get('pincode');
   if (initial) {
     input.value = initial;
+    if (params.get('from')) $('from').value = params.get('from');
+    if (params.get('to')) $('to').value = params.get('to');
     history.replaceState(null, '', location.pathname);
     lookup(initial);
   }

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { resolveDateWindow, suffixRange, todayInTimezone } from '../src/utils/date.js';
+import {
+  daysBetween,
+  isValidIsoDate,
+  resolveDateWindow,
+  resolveRequestedWindow,
+  suffixRange,
+  todayInTimezone,
+} from '../src/utils/date.js';
 
 describe('last-six-month date filtering', () => {
   it('derives the calendar-month window documented in the API contract', () => {
@@ -106,5 +113,78 @@ describe('period anchoring — how often BigQuery is actually queried', () => {
 
   it('reports the anchor so consumers know the data cadence', () => {
     expect(at('2026-08-26', 'week').anchor).toBe('week');
+  });
+});
+
+describe('custom date ranges', () => {
+  const NOW = new Date('2026-09-02T06:30:00.000Z');
+  const at = (r: { from?: string; to?: string }) => resolveRequestedWindow(r, NOW, 'Asia/Kolkata');
+
+  it('falls back to the configured default when neither bound is given', () => {
+    const w = at({});
+    expect(w.source).toBe('default');
+    expect(w.anchor).toBeDefined();
+    expect(w.nextRolloverOn).toBeDefined();
+  });
+
+  it('uses both bounds verbatim when both are given', () => {
+    const w = at({ from: '2026-07-01', to: '2026-07-31' });
+    expect(w).toMatchObject({ from: '2026-07-01', to: '2026-07-31', days: 31, source: 'custom' });
+  });
+
+  it('omits the cadence fields for a custom range rather than faking them', () => {
+    // Reporting anchor/nextRolloverOn on a fixed range would imply it moves.
+    const w = at({ from: '2026-07-01', to: '2026-07-31' });
+    expect(w.anchor).toBeUndefined();
+    expect(w.nextRolloverOn).toBeUndefined();
+    expect(w.months).toBeUndefined();
+  });
+
+  it('given only `from`, ends at the default end date', () => {
+    const w = at({ from: '2026-08-01' });
+    expect(w.from).toBe('2026-08-01');
+    expect(w.to).toBe(resolveRequestedWindow({}, NOW, 'Asia/Kolkata').to);
+    expect(w.source).toBe('custom');
+  });
+
+  it('given only `to`, keeps the configured span measured back from it', () => {
+    // tests/setup.ts pins METRICS_PERIOD_MODE=calendar_months, so six calendar
+    // months ending in June starts on 1 January. Under `rolling` the same call
+    // would yield 2025-12-30; the point is that the span, not the end, is kept.
+    const w = at({ to: '2026-06-30' });
+    expect(w).toMatchObject({ to: '2026-06-30', from: '2026-01-01', source: 'custom' });
+    expect(w.days).toBe(181);
+  });
+
+  it('counts days inclusively', () => {
+    expect(at({ from: '2026-07-01', to: '2026-07-01' }).days).toBe(1);
+    expect(at({ from: '2026-07-01', to: '2026-07-02' }).days).toBe(2);
+  });
+
+  it('handles a range crossing a year boundary', () => {
+    const w = at({ from: '2025-10-15', to: '2026-02-14' });
+    expect(w).toMatchObject({ from: '2025-10-15', to: '2026-02-14', days: 123 });
+  });
+
+  it('handles a leap day', () => {
+    expect(daysBetween('2028-02-01', '2028-02-29')).toBe(29);
+    expect(daysBetween('2026-02-01', '2026-02-28')).toBe(28);
+  });
+});
+
+describe('isValidIsoDate', () => {
+  it('accepts real dates', () => {
+    for (const d of ['2026-01-01', '2026-12-31', '2028-02-29']) expect(isValidIsoDate(d)).toBe(true);
+  });
+
+  it('rejects impossible or malformed dates', () => {
+    for (const d of ['2026-02-30', '2026-13-01', '2026-00-10', '2026-01-32', '2026-1-1', '26-01-01', '', 'yesterday']) {
+      expect(isValidIsoDate(d), d).toBe(false);
+    }
+  });
+
+  it('rejects a non-leap 29 February', () => {
+    expect(isValidIsoDate('2026-02-29')).toBe(false);
+    expect(isValidIsoDate('2028-02-29')).toBe(true);
   });
 });

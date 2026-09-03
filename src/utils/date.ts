@@ -7,13 +7,38 @@ export interface DateWindow {
   from: string;
   /** Inclusive end, ISO `YYYY-MM-DD`. */
   to: string;
-  months: number;
-  mode: 'calendar_months' | 'rolling';
-  /** How often the window is allowed to move. */
-  anchor: PeriodAnchor;
+  /** Inclusive day count, so a caller can see how wide the window really is. */
+  days: number;
   timezone: string;
-  /** ISO date at which this window becomes stale and BigQuery is queried again. */
-  nextRolloverOn: string;
+  /**
+   * Where the bounds came from. `custom` means the caller supplied them, in
+   * which case the refresh-cadence fields below do not apply — the window is
+   * fixed by the request, not by the clock.
+   */
+  source: 'default' | 'custom';
+  /** Configured window length. Only meaningful when `source` is `default`. */
+  months?: number;
+  mode?: 'calendar_months' | 'rolling';
+  /** How often the default window moves. Only set when `source` is `default`. */
+  anchor?: PeriodAnchor;
+  /** When the default window next moves. Only set when `source` is `default`. */
+  nextRolloverOn?: string;
+}
+
+/** Inclusive number of days between two ISO dates. */
+export function daysBetween(fromIso: string, toIso: string): number {
+  const [fy, fm, fd] = fromIso.split('-').map(Number) as [number, number, number];
+  const [ty, tm, td] = toIso.split('-').map(Number) as [number, number, number];
+  const ms = Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd);
+  return Math.floor(ms / 86_400_000) + 1;
+}
+
+/** True for a well-formed, real calendar date in `YYYY-MM-DD` form. */
+export function isValidIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number) as [number, number, number];
+  if (m < 1 || m > 12 || d < 1) return false;
+  return d <= new Date(Date.UTC(y, m, 0)).getUTCDate();
 }
 
 /** "Today" in the configured IANA timezone, as {y, m, d}. */
@@ -131,12 +156,47 @@ export function resolveDateWindow(
   return {
     from,
     to,
+    days: daysBetween(from, to),
+    timezone,
+    source: 'default',
     months,
     mode,
     anchor,
-    timezone,
     nextRolloverOn: iso(rollover.y, rollover.m, rollover.d),
   };
+}
+
+/**
+ * Builds a window from caller-supplied bounds, filling in whichever side was
+ * omitted from the configured default. Both bounds are inclusive and are
+ * interpreted as plain dates in `timezone`, exactly as the default window is,
+ * so a custom range and the default range are measured the same way.
+ */
+export function resolveRequestedWindow(
+  requested: { from?: string; to?: string },
+  now: Date = new Date(),
+  timezone: string = env.METRICS_TIMEZONE,
+): DateWindow {
+  if (!requested.from && !requested.to) return resolveDateWindow(now);
+
+  const fallback = resolveDateWindow(now);
+  const to = requested.to ?? fallback.to;
+
+  let from: string;
+  if (requested.from) {
+    from = requested.from;
+  } else {
+    // Only `to` was given: keep the configured span, measured back from it.
+    const [ty, tm, td] = to.split('-').map(Number) as [number, number, number];
+    const months = env.METRICS_PERIOD_MONTHS;
+    const start =
+      env.METRICS_PERIOD_MODE === 'calendar_months'
+        ? { ...subtractMonths(ty, tm, 1, months - 1), d: 1 }
+        : subtractMonths(ty, tm, td, months);
+    from = iso(start.y, start.m, start.d);
+  }
+
+  return { from, to, days: daysBetween(from, to), timezone, source: 'custom' };
 }
 
 /**

@@ -1,6 +1,7 @@
 /** Machine-readable error codes returned to clients. */
 export const ErrorCode = {
   INVALID_PINCODE: 'INVALID_PINCODE',
+  INVALID_DATE_RANGE: 'INVALID_DATE_RANGE',
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   NOT_FOUND: 'NOT_FOUND',
   CONFIGURATION_ERROR: 'CONFIGURATION_ERROR',

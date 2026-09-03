@@ -26,22 +26,40 @@ export class MetricsController {
     }
   }
 
-  /** GET /api/v1/metrics?pincode=... */
+  /** GET /api/v1/metrics?pincode=...&from=YYYY-MM-DD&to=YYYY-MM-DD */
   getMetrics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    await this.handle(req.query.pincode, res, next);
+    await this.handle(
+      { pincode: req.query.pincode, from: req.query.from, to: req.query.to },
+      res,
+      next,
+    );
   };
 
-  /** POST /api/v1/metrics  { "pincode": "..." } */
+  /** POST /api/v1/metrics  { "pincode": "...", "from": "...", "to": "..." } */
   postMetrics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    await this.handle((req.body as { pincode?: unknown })?.pincode, res, next);
+    const body = (req.body ?? {}) as { pincode?: unknown; from?: unknown; to?: unknown };
+    await this.handle({ pincode: body.pincode, from: body.from, to: body.to }, res, next);
   };
 
-  private async handle(rawPincode: unknown, res: Response, next: NextFunction): Promise<void> {
+  private async handle(
+    raw: { pincode: unknown; from: unknown; to: unknown },
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       // Validation first: never let a configuration failure mask a bad request.
-      const { pincode } = parseMetricsRequest({ pincode: rawPincode });
+      // Blank query params are treated as absent so `?from=&to=` behaves as if
+      // the caller had not asked for a range at all.
+      const blankToUndefined = (v: unknown): unknown =>
+        typeof v === 'string' && v.trim() === '' ? undefined : v;
 
-      const result = await this.provider().getMetrics(pincode);
+      const { pincode, from, to } = parseMetricsRequest({
+        pincode: raw.pincode,
+        from: blankToUndefined(raw.from),
+        to: blankToUndefined(raw.to),
+      });
+
+      const result = await this.provider().getMetrics(pincode, new Date(), { from, to });
 
       const body: SuccessEnvelope<MetricsPayload> = {
         success: true,

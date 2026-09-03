@@ -1,7 +1,8 @@
 import { env } from '../config/env.js';
 import { getSchemaMapping, type SchemaMapping } from '../config/schema.mapping.js';
 import { BigQueryMetricsRepository, type MetricsRepository } from '../repositories/bigquery.repository.js';
-import { resolveDateWindow, type DateWindow } from '../utils/date.js';
+import { resolveRequestedWindow, type DateWindow } from '../utils/date.js';
+import { assertRangeUsable } from '../utils/validation.js';
 import { logger } from '../utils/logger.js';
 import type { MetricsPayload, MetricsResult } from '../types/metrics.js';
 
@@ -83,8 +84,21 @@ export class MetricsService {
    * Orchestrates one metrics lookup: resolve the window, query BigQuery once,
    * derive both metrics, and describe how they were derived.
    */
-  async getMetrics(pincode: string, now: Date = new Date()): Promise<MetricsResult> {
-    const window = resolveDateWindow(now);
+  /**
+   * `range` lets a caller pin the window explicitly. Omit it, or either bound,
+   * and the configured default fills in — so the default behaviour is
+   * unchanged for callers that do not ask for a range.
+   */
+  async getMetrics(
+    pincode: string,
+    now: Date = new Date(),
+    range: { from?: string; to?: string } = {},
+  ): Promise<MetricsResult> {
+    const window = resolveRequestedWindow(range, now);
+    assertRangeUsable(window);
+
+    // The window is part of the key, so a custom range caches independently of
+    // the default one and neither can serve the other's answer.
     const cacheKey = `${pincode}::${window.from}::${window.to}`;
 
     const cached = this.cache.get(cacheKey);
@@ -123,11 +137,15 @@ export class MetricsService {
       period: {
         from: window.from,
         to: window.to,
-        months: window.months,
-        mode: window.mode,
-        anchor: window.anchor,
+        days: window.days,
         timezone: window.timezone,
-        nextRolloverOn: window.nextRolloverOn,
+        source: window.source,
+        // The cadence fields describe the default policy and are meaningless
+        // for a caller-supplied range, so they are omitted rather than faked.
+        ...(window.months !== undefined ? { months: window.months } : {}),
+        ...(window.mode !== undefined ? { mode: window.mode } : {}),
+        ...(window.anchor !== undefined ? { anchor: window.anchor } : {}),
+        ...(window.nextRolloverOn !== undefined ? { nextRolloverOn: window.nextRolloverOn } : {}),
       },
       metrics: { averageOrderValue, conversionRate },
       supporting: {

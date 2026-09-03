@@ -13,13 +13,18 @@ export interface RawMetricsRow {
 export interface MetricsPeriod {
   from: string;
   to: string;
-  months: number;
-  mode: DateWindow['mode'];
-  /** How often the window moves: 'day' | 'week' | 'month'. */
-  anchor: DateWindow['anchor'];
+  /** Inclusive day count of the window. */
+  days: number;
   timezone: string;
-  /** ISO date on which the window next moves and BigQuery is queried again. */
-  nextRolloverOn: string;
+  /** `custom` when the caller supplied from/to, otherwise `default`. */
+  source: DateWindow['source'];
+  /** Configured window length. Absent for a custom range. */
+  months?: number;
+  mode?: DateWindow['mode'];
+  /** How often the default window moves. Absent for a custom range. */
+  anchor?: DateWindow['anchor'];
+  /** When the default window next moves. Absent for a custom range. */
+  nextRolloverOn?: string;
 }
 
 export interface MetricsPayload {

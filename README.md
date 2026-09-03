@@ -362,6 +362,8 @@ Both are supported. `GET` is the primary contract: the operation is a pure, cach
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `pincode` | string | Yes | Pincode to report on. Trimmed. Validated against `PINCODE_PATTERN` (default: 3–12 alphanumerics, spaces, hyphens — deliberately **not** locked to 6 Indian digits). |
+| `from` | string | No | Inclusive window start, `YYYY-MM-DD`. Defaults to the rolling 6-month window. |
+| `to` | string | No | Inclusive window end, `YYYY-MM-DD`. Defaults to the weekly pull date. |
 
 Full request/response reference, including every error code: **[docs/API.md](docs/API.md)**.
 
@@ -583,6 +585,7 @@ npm run validate:metrics -- --top=3
 | `METRICS_PERIOD_ANCHOR` | `week` | how often the window moves — `day` \| `week` \| `month`. **This governs how often BigQuery is queried.** |
 | `METRICS_CACHE_TTL_SECONDS` | `604800` | in-process cache TTL; `0` disables. Keep ≥ the anchor interval |
 | `METRICS_CACHE_MAX_ENTRIES` | `5000` | max cached pincode+period entries |
+| `METRICS_MAX_RANGE_DAYS` | `1095` | widest custom range a caller may request; guards BigQuery spend |
 | `CORS_ALLOW_ORIGIN` | `*` | allowed frontend origin |
 
 Blank values are treated as unset, so commenting out a value in `.env` falls back to the default.

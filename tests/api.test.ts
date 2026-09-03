@@ -283,3 +283,83 @@ describe('readiness reports what is actually deployed', () => {
     expect(body).not.toMatch(/PRIVATE KEY|private_key|fact_orders|oms_sales|lead_base/);
   });
 });
+
+describe('custom date range via the API', () => {
+  it('accepts from and to and echoes the exact window back', async () => {
+    const res = await request(appWith(healthyRepo))
+      .get('/api/v1/metrics')
+      .query({ pincode: '400092', from: '2026-07-01', to: '2026-07-31' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.period).toMatchObject({
+      from: '2026-07-01', to: '2026-07-31', days: 31, source: 'custom',
+    });
+    // Cadence fields describe the default policy and must not appear.
+    expect(res.body.data.period.anchor).toBeUndefined();
+    expect(res.body.data.period.nextRolloverOn).toBeUndefined();
+  });
+
+  it('falls back to the default window when no dates are given', async () => {
+    const res = await request(appWith(healthyRepo)).get('/api/v1/metrics?pincode=400092');
+    expect(res.body.data.period.source).toBe('default');
+    expect(res.body.data.period.months).toBe(6);
+  });
+
+  it('treats blank date params as absent', async () => {
+    const res = await request(appWith(healthyRepo)).get('/api/v1/metrics?pincode=400092&from=&to=');
+    expect(res.status).toBe(200);
+    expect(res.body.data.period.source).toBe('default');
+  });
+
+  it('accepts the range in a POST body', async () => {
+    const res = await request(appWith(healthyRepo))
+      .post('/api/v1/metrics')
+      .send({ pincode: '400092', from: '2026-07-01', to: '2026-07-31' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.period).toMatchObject({ from: '2026-07-01', to: '2026-07-31' });
+  });
+
+  it('rejects from later than to', async () => {
+    const res = await request(appWith(healthyRepo))
+      .get('/api/v1/metrics')
+      .query({ pincode: '400092', from: '2026-08-01', to: '2026-07-01' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe(ErrorCode.INVALID_DATE_RANGE);
+    expect(res.body.error.message).toMatch(/must not be later than/);
+  });
+
+  it.each(['2026-02-30', '2026-13-01', '2026-1-1', 'yesterday', '01/07/2026'])(
+    'rejects the malformed date %s',
+    async (bad) => {
+      const res = await request(appWith(healthyRepo))
+        .get('/api/v1/metrics')
+        .query({ pincode: '400092', from: bad });
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toMatch(/real calendar date/);
+    },
+  );
+
+  it('rejects a range wider than the configured limit', async () => {
+    const res = await request(appWith(healthyRepo))
+      .get('/api/v1/metrics')
+      .query({ pincode: '400092', from: '2010-01-01', to: '2026-08-31' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe(ErrorCode.INVALID_DATE_RANGE);
+    expect(res.body.error.message).toMatch(/exceeds the \d+-day limit/);
+  });
+
+  it('accepts a single-day range', async () => {
+    const res = await request(appWith(healthyRepo))
+      .get('/api/v1/metrics')
+      .query({ pincode: '400092', from: '2026-07-15', to: '2026-07-15' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.period.days).toBe(1);
+  });
+
+  it('still validates the pincode when a range is supplied', async () => {
+    const res = await request(appWith(healthyRepo))
+      .get('/api/v1/metrics')
+      .query({ pincode: 'ab', from: '2026-07-01', to: '2026-07-31' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe(ErrorCode.INVALID_PINCODE);
+  });
+});
