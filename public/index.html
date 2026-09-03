@@ -147,6 +147,10 @@
 
   .quick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 14px; }
   .quick > span { font-size: 12.5px; color: var(--text-faint); margin-right: 2px; }
+  #dates-hint {
+    font-size: 12.5px; font-weight: 550; color: var(--warn);
+    background: var(--warn-soft); padding: 4px 10px; border-radius: 999px; margin-left: auto;
+  }
   .chip {
     font: inherit; font-size: 12.5px; padding: 5px 11px; cursor: pointer;
     color: var(--text-muted); background: var(--surface-2); border: 1px solid var(--border);
@@ -546,6 +550,25 @@
     return { from: $('from').value.trim(), to: $('to').value.trim() };
   }
 
+  /**
+   * A half-picked range is not a query. Choosing "from" is the first of two
+   * actions, and firing on it would return a window the user never asked for
+   * and is about to change anyway. Both dates, or neither, before we run.
+   */
+  function rangeState() {
+    var f = $('from').value.trim();
+    var t = $('to').value.trim();
+    if (f && t) return 'both';
+    if (!f && !t) return 'neither';
+    return 'partial';
+  }
+
+  function setHint(text) {
+    var el = $('dates-hint');
+    el.textContent = text || '';
+    el.hidden = !text;
+  }
+
   /** Fills the inputs with a window the server resolved, without pinning it. */
   function showWindow(period) {
     if (period.source !== 'default') return;
@@ -587,18 +610,29 @@
     e.preventDefault();
     var v = input.value.trim();
     if (!v) { fail('Pincode is required.'); return; }
+    if (rangeState() === 'partial') {
+      setHint('Pick both dates to apply');
+      return;
+    }
+    setHint('');
     lookup(v);
   });
 
   Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (chip) {
     chip.addEventListener('click', function () {
       input.value = chip.dataset.pin;
+      if (rangeState() === 'partial') {
+        setHint('Pick both dates to apply');
+        return;
+      }
+      setHint('');
       lookup(chip.dataset.pin);
     });
   });
 
   $('clear-dates').addEventListener('click', function () {
     datesAreAuto = true;
+    setHint('');
     if (input.value.trim()) {
       // The reply carries the default window, which showWindow() writes back.
       lookup(input.value.trim());
@@ -611,7 +645,15 @@
   // disagree with the dates shown above them.
   ['from', 'to'].forEach(function (id) {
     $(id).addEventListener('change', function () {
-      datesAreAuto = false;
+      var state = rangeState();
+      // Clearing both fields is a request for the default window again.
+      datesAreAuto = state === 'neither';
+
+      if (state === 'partial') {
+        setHint('Pick both dates to apply');
+        return;
+      }
+      setHint('');
       if (input.value.trim()) lookup(input.value.trim());
     });
   });
