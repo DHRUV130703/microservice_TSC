@@ -202,6 +202,29 @@
   .def .k { font-size: 12.5px; font-weight: 640; margin-bottom: 4px; }
   .def .v { font-size: 13px; color: var(--text-muted); line-height: 1.65; }
 
+  /* nearest store */
+  .store {
+    margin-top: 14px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden;
+  }
+  .store .top {
+    padding: 16px 18px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+  }
+  .store .top .label { font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-faint); }
+  .store .top .name { font-size: 16px; font-weight: 640; letter-spacing: -.01em; }
+  .store .top .dist {
+    font-size: 12px; font-weight: 600; color: var(--accent);
+    background: var(--accent-soft); padding: 3px 9px; border-radius: 999px;
+  }
+  .store .body { padding: 16px 18px; display: grid; gap: 12px; }
+  .store .landmark { font-size: 14.5px; line-height: 1.55; }
+  .store .landmark .k { font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 5px; }
+  .store .facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--text-muted); }
+  .store .facts a { color: var(--accent); text-decoration: none; }
+  .store .facts a:hover { text-decoration: underline; }
+  .store .others { border-top: 1px solid var(--border); padding: 12px 18px; font-size: 12.5px; color: var(--text-faint); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+
   .meta { margin-top: 14px; font-size: 12.5px; color: var(--text-faint); display: flex; flex-wrap: wrap; gap: 6px 16px; }
   .meta code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
   .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 6px; }
@@ -304,6 +327,22 @@
       <div class="stat"><div class="k">Total order value</div><div class="v" id="r-value"></div></div>
       <div class="stat"><div class="k">Total leads</div><div class="v" id="r-leads"></div></div>
       <div class="stat"><div class="k">Converted leads</div><div class="v" id="r-conv"></div></div>
+    </div>
+
+    <div class="store" id="r-store" hidden>
+      <div class="top">
+        <span class="label">Nearest store</span>
+        <span class="name" id="r-store-name"></span>
+        <span class="dist" id="r-store-dist"></span>
+      </div>
+      <div class="body">
+        <div class="landmark" id="r-store-landmark-wrap" hidden>
+          <div class="k">How to find it</div>
+          <div id="r-store-landmark"></div>
+        </div>
+        <div class="facts" id="r-store-facts"></div>
+      </div>
+      <div class="others" id="r-store-others" hidden></div>
     </div>
 
     <details>
@@ -433,6 +472,64 @@
     show(elResults);
   }
 
+  var esc = function (t) {
+    var d = document.createElement('div');
+    d.textContent = t == null ? '' : String(t);
+    return d.innerHTML;
+  };
+
+  /**
+   * The nearest store is a separate upstream call, so it is fetched alongside
+   * the metrics and rendered on its own. A failure here must not blank the
+   * metrics, which are the primary answer — the card is simply hidden.
+   */
+  async function loadStore(pincode) {
+    var card = $('r-store');
+    hide(card);
+    try {
+      var res = await fetch('/api/v1/stores?pincode=' + encodeURIComponent(pincode), {
+        headers: { Accept: 'application/json' }
+      });
+      var body = await res.json();
+      if (!body.success || !body.data || !body.data.nearest) return;
+
+      var n = body.data.nearest;
+      $('r-store-name').textContent = n.shortCode || n.storeName || n.storeId || 'Store';
+      $('r-store-dist').textContent = n.distanceKm === null ? '' : n.distanceKm + ' km away';
+      $('r-store-dist').hidden = n.distanceKm === null;
+
+      var detail = n.landmark && n.landmark.detail;
+      $('r-store-landmark').textContent = detail || '';
+      $('r-store-landmark-wrap').hidden = !detail;
+
+      var facts = [];
+      if (n.address) facts.push('<span>' + esc(n.address) + '</span>');
+      if (n.timings) facts.push('<span>' + esc(n.timings) + '</span>');
+      if (n.contact) facts.push('<span>' + esc(n.contact) + '</span>');
+      if (n.rating) facts.push('<span>★ ' + esc(n.rating) + (n.reviewCount ? ' (' + esc(n.reviewCount) + ')' : '') + '</span>');
+      var map = (n.landmark && n.landmark.mapUrl) || n.mapLink;
+      if (map) facts.push('<a href="' + esc(map) + '" target="_blank" rel="noopener">Directions</a>');
+      $('r-store-facts').innerHTML = facts.join('');
+
+      var others = (body.data.stores || []).slice(1);
+      if (others.length) {
+        $('r-store-others').innerHTML =
+          '<span>Also nearby:</span>' +
+          others.map(function (o) {
+            return '<span>' + esc(o.shortCode || o.storeName || o.storeId) +
+              (o.distanceKm === null ? '' : ' · ' + o.distanceKm + ' km') + '</span>';
+          }).join('');
+        show($('r-store-others'));
+      } else {
+        hide($('r-store-others'));
+      }
+
+      show(card);
+    } catch (e) {
+      // Store lookup is supplementary; stay quiet and leave the card hidden.
+    }
+  }
+
   function fail(message) {
     elError.innerHTML = '<span>' + message + '</span>';
     show(elError);
@@ -458,7 +555,7 @@
   }
 
   async function lookup(pincode, range) {
-    hide(elError); hide(elResults); show(elLoading);
+    hide(elError); hide(elResults); hide($('r-store')); show(elLoading);
     submit.disabled = true; submit.textContent = 'Loading…';
 
     var r = range || currentRange();
@@ -477,6 +574,7 @@
         return;
       }
       render(body);
+      loadStore(pincode);
     } catch (e) {
       fail('Could not reach the metrics service. Is it running on this host?');
     } finally {

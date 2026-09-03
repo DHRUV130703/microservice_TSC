@@ -27,6 +27,22 @@ const envSchema = z.object({
   /** Query timeout in milliseconds. */
   BIGQUERY_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
 
+  // --- Store locator ------------------------------------------------------
+  /** Upstream store-locator endpoint that resolves a pincode to nearby stores. */
+  STORE_LOCATOR_URL: z.string().url().default('https://api.thesleepcompany.in/stores'),
+  /**
+   * API key for the store locator. A secret: keep it in the environment, never
+   * in source or in the repository.
+   */
+  STORE_LOCATOR_API_KEY: z.string().min(1).optional(),
+  STORE_LOCATOR_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
+  /** How long a store-locator answer is reused. Store locations move rarely. */
+  STORE_LOCATOR_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).default(86_400),
+  /** Default number of nearby stores returned. */
+  STORE_LOCATOR_DEFAULT_LIMIT: z.coerce.number().int().positive().max(50).default(3),
+  /** Path to the landmark file generated from the store spreadsheet. */
+  STORE_LANDMARKS_PATH: z.string().min(1).default('config/store-landmarks.json'),
+
   /** Path to the schema mapping file describing the real BigQuery layout. */
   SCHEMA_MAPPING_PATH: z.string().min(1).default('config/schema.mapping.json'),
   /**

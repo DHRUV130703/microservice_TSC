@@ -54,6 +54,27 @@ export function parseMetricsRequest(input: unknown): MetricsRequest {
   );
 }
 
+export const storesRequestSchema = z.object({
+  pincode: pincodeSchema,
+  /** How many nearby stores to return. Capped so one call cannot fan out. */
+  limit: z.coerce.number().int().positive().max(20).optional(),
+});
+
+export type StoresRequest = z.infer<typeof storesRequestSchema>;
+
+export function parseStoresRequest(input: unknown): StoresRequest {
+  const parsed = storesRequestSchema.safeParse(input);
+  if (parsed.success) return parsed.data;
+
+  const first = parsed.error.issues[0];
+  const isPincodeIssue = first?.path[0] === 'pincode';
+  throw AppError.badRequest(
+    isPincodeIssue ? ErrorCode.INVALID_PINCODE : ErrorCode.VALIDATION_ERROR,
+    first?.message ?? 'Invalid request.',
+    parsed.error.issues.map((i) => ({ field: i.path.join('.') || 'body', message: i.message })),
+  );
+}
+
 /**
  * Range checks that need both bounds resolved, so they run after the window is
  * built rather than during field validation.

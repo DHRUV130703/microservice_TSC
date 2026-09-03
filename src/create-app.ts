@@ -3,13 +3,17 @@ import path from 'node:path';
 import express, { type Express } from 'express';
 import { createHealthRouter } from './routes/health.routes.js';
 import { createMetricsRouter } from './routes/metrics.routes.js';
+import { createStoresRouter } from './routes/stores.routes.js';
 import { requestContext } from './middleware/requestContext.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import type { MetricsController } from './controllers/metrics.controller.js';
+import type { StoresController } from './controllers/stores.controller.js';
 
 export interface AppOptions {
   /** Injected in tests so the app can run without BigQuery. */
   metricsController?: MetricsController;
+  /** Injected in tests so the app can run without the store locator. */
+  storesController?: StoresController;
 }
 
 export function createApp(options: AppOptions = {}): Express {
@@ -77,6 +81,7 @@ export function createApp(options: AppOptions = {}): Express {
 
   app.use(createHealthRouter());
   app.use('/api/v1', createMetricsRouter(options.metricsController));
+  app.use('/api/v1', createStoresRouter(options.storesController));
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -365,6 +365,21 @@ Both are supported. `GET` is the primary contract: the operation is a pure, cach
 | `from` | string | No | Inclusive window start, `YYYY-MM-DD`. Defaults to the rolling 6-month window. |
 | `to` | string | No | Inclusive window end, `YYYY-MM-DD`. Defaults to the weekly pull date. |
 
+### `GET /api/v1/stores?pincode={pincode}&limit={n}`
+
+Resolves a pincode to nearby physical stores via the store-locator API and attaches the
+pincode-wise landmark details from the store spreadsheet (216 stores), joined on store id.
+
+```bash
+curl "http://localhost:3000/api/v1/stores?pincode=400090"
+```
+
+> `"landmark": { "detail": "Opposite Infinity Mall, Malad West — 1st floor. PIN 400064." }`
+
+The spreadsheet is imported to `config/store-landmarks.json` by
+`scripts/import-store-landmarks.py`; re-run it whenever the sheet changes. A store the sheet does
+not cover is still returned, with `landmark: null`, so a spreadsheet gap never hides a store.
+
 Full request/response reference, including every error code: **[docs/API.md](docs/API.md)**.
 
 ### Success
@@ -587,6 +602,12 @@ npm run validate:metrics -- --top=3
 | `METRICS_CACHE_MAX_ENTRIES` | `5000` | max cached pincode+period entries |
 | `METRICS_MAX_RANGE_DAYS` | `1095` | widest custom range a caller may request; guards BigQuery spend |
 | `CORS_ALLOW_ORIGIN` | `*` | allowed frontend origin |
+| `STORE_LOCATOR_URL` | `https://api.thesleepcompany.in/stores` | upstream store locator |
+| `STORE_LOCATOR_API_KEY` | — | **secret**; store lookups return `CONFIGURATION_ERROR` without it |
+| `STORE_LOCATOR_TIMEOUT_MS` | `10000` | upstream request timeout |
+| `STORE_LOCATOR_CACHE_TTL_SECONDS` | `86400` | store results are cached for a day |
+| `STORE_LOCATOR_DEFAULT_LIMIT` | `3` | nearby stores returned by default |
+| `STORE_LANDMARKS_PATH` | `config/store-landmarks.json` | generated landmark table |
 
 Blank values are treated as unset, so commenting out a value in `.env` falls back to the default.
 

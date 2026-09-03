@@ -250,6 +250,76 @@ or credential material. This is enforced by tests in `tests/api.test.ts`.
 
 ---
 
+## `GET /api/v1/stores`
+## `POST /api/v1/stores`
+
+Resolves a pincode to nearby physical stores and attaches the landmark details
+from the store spreadsheet.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `pincode` | string | Yes | Same validation as the metrics endpoint. |
+| `limit` | number | No | How many nearby stores to return. Default 3, max 20. |
+
+```bash
+curl "http://localhost:3000/api/v1/stores?pincode=400090"
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "pincode": "400090",
+    "nearest": {
+      "storeId": "TSC118",
+      "storeName": "The Sleep Company Experience Store - Malad",
+      "shortCode": "Malad West",
+      "city": "Mumbai",
+      "pincode": "400064",
+      "distanceKm": 2.4,
+      "address": "269-A/3, First Floor, Solitaire II, Opposite Infinity Mall, Malad West, Mumbai, Maharashtra 400064",
+      "contact": "9811981911",
+      "timings": "11AM to 9:30PM, Mon - Sun",
+      "rating": "4.9",
+      "reviewCount": "539",
+      "parking": "Valet Parking",
+      "mapLink": "https://maps.app.goo.gl/aCW3Nt5oLGUf3aVQ7",
+      "storeUrl": "https://thesleepcompany.in/pages/mattress-store-in-malad",
+      "latitude": "19.18409",
+      "longitude": "72.83609",
+      "comingSoon": false,
+      "landmark": {
+        "detail": "Opposite Infinity Mall, Malad West — 1st floor. PIN 400064.",
+        "businessAddress": "269-A/3, First Floor, Solitaire II, Opposite Infinity Mall, Malad West, Mumbai, Maharashtra",
+        "mapUrl": "https://maps.google.com/maps?cid=17318950302109061910",
+        "storeName": "Malad_Mumbai",
+        "pincode": "400064"
+      }
+    },
+    "stores": [ "…same shape, nearest first…" ],
+    "meta": { "storesReturned": 3, "landmarksMatched": 3, "cached": false, "fetchedAt": "…", "ageSeconds": 0 }
+  }
+}
+```
+
+### Notes
+
+- **Ordering is the upstream's.** The locator returns stores sorted by ascending
+  `distance`; that order is preserved rather than re-sorted, so "nearest" means what the
+  upstream says it means.
+- **`landmark` is `null`** when the locator returns a store the spreadsheet does not cover. The
+  store is still reported — it simply carries no navigation help. `meta.landmarksMatched` tells you
+  how many of the returned stores were matched. Measured coverage across seven pincodes:
+  1,512 of 1,519 store entries matched.
+- **No stores found is a success**, not an error: `200`, `nearest: null`, and a `message`.
+- **Cached for 24 hours** per pincode+limit (`STORE_LOCATOR_CACHE_TTL_SECONDS`); store locations
+  change rarely.
+- Failures map to `502 UPSTREAM_ERROR`, `504 UPSTREAM_TIMEOUT`, or
+  `500 CONFIGURATION_ERROR` when `STORE_LOCATOR_API_KEY` is missing or rejected. The API key never
+  appears in a response.
+
+---
+
 ## Health
 
 ### `GET /health` — liveness
