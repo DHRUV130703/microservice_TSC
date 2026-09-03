@@ -97,9 +97,11 @@ export class MetricsService {
     const window = resolveRequestedWindow(range, now);
     assertRangeUsable(window);
 
-    // The window is part of the key, so a custom range caches independently of
-    // the default one and neither can serve the other's answer.
-    const cacheKey = `${pincode}::${window.from}::${window.to}`;
+    // `source` belongs in the key as well as the dates. A caller-supplied range
+    // that happens to match the default window has identical metrics but
+    // different metadata — it is fixed, where the default rolls forward weekly —
+    // so the two must not share a cache entry.
+    const cacheKey = `${pincode}::${window.source}::${window.from}::${window.to}`;
 
     const cached = this.cache.get(cacheKey);
     if (cached) {

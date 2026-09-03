@@ -175,3 +175,50 @@ describe('AOV method selection', () => {
     expect(payload.supporting.totalOrders).toBe(100);
   });
 });
+
+describe('cache keying across window sources', () => {
+  /**
+   * Regression: the key was pincode+from+to, so an explicit range matching the
+   * default window served the default's cached payload — reporting
+   * `source: default` and a rollover date for what is actually a fixed range.
+   */
+  it('does not let an explicit range inherit the default range payload', async () => {
+    const repo = repositoryReturning({ totalOrders: 10, totalOrderValue: 1000, totalLeads: 20, convertedLeads: 5 });
+    const cache = new (class {
+      private m = new Map<string, any>();
+      get(k: string) { return this.m.get(k); }
+      set(k: string, payload: any, message?: string) { this.m.set(k, { payload, message, storedAt: Date.now(), expiresAt: Infinity }); }
+      clear() { this.m.clear(); }
+    })();
+    const service = new MetricsService(repo, joinOrdersMapping, cache as never);
+
+    const dflt = await service.getMetrics('400092', NOW);
+    const explicit = await service.getMetrics('400092', NOW, {
+      from: dflt.payload.period.from,
+      to: dflt.payload.period.to,
+    });
+
+    expect(dflt.payload.period.source).toBe('default');
+    expect(explicit.payload.period.source).toBe('custom');
+    expect(explicit.payload.period.nextRolloverOn).toBeUndefined();
+    // Same window, so the numbers must agree even though metadata differs.
+    expect(explicit.payload.supporting).toEqual(dflt.payload.supporting);
+  });
+
+  it('serves a repeat of the same explicit range from cache', async () => {
+    const repo = repositoryReturning({ totalOrders: 3, totalOrderValue: 300 });
+    const spy = vi.spyOn(repo, 'fetchMetrics');
+    const cache = new (class {
+      private m = new Map<string, any>();
+      get(k: string) { return this.m.get(k); }
+      set(k: string, payload: any) { this.m.set(k, { payload, storedAt: Date.now(), expiresAt: Infinity }); }
+      clear() { this.m.clear(); }
+    })();
+    const service = new MetricsService(repo, joinOrdersMapping, cache as never);
+    const range = { from: '2026-07-01', to: '2026-07-31' };
+    await service.getMetrics('400092', NOW, range);
+    const second = await service.getMetrics('400092', NOW, range);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(second.payload.meta.cached).toBe(true);
+  });
+});
