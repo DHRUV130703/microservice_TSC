@@ -4,249 +4,269 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Pincode Metrics</title>
+<meta name="description" content="Average Order Value and Conversion Rate by pincode, over any date range." />
 <!-- Tab icon is the square mark, cropped from the wordmark: the full lockup is
      illegible at 16px. The in-page header keeps the wordmark. -->
 <link rel="icon" type="image/png" sizes="256x256" href="/icon.png" />
-<meta name="description" content="Average Order Value and Conversion Rate by pincode, over any date range." />
 <style>
   :root {
-    --bg: #f6f7f9;
+    --bg: #f5f6f8;
     --surface: #ffffff;
-    --surface-2: #fbfbfc;
-    --border: #e3e6ea;
-    --border-strong: #d2d7dd;
-    --text: #16191d;
-    --text-muted: #666e79;
-    --text-faint: #8b939d;
+    --surface-2: #fafbfc;
+    --border: #e5e8ec;
+    --border-strong: #d4d9e0;
+    --text: #14171c;
+    --text-muted: #5f6773;
+    --text-faint: #8b939f;
     --accent: #1f6feb;
-    --accent-soft: #eaf1fe;
-    --good: #197f4b;
-    --good-soft: #e7f4ed;
+    --accent-soft: #e8f0fe;
+    --good: #1a7f4b;
     --warn: #8a5a00;
-    --warn-soft: #fdf3e0;
+    --warn-soft: #fdf6e7;
     --bad: #b3261e;
-    --bad-soft: #fdecea;
-    --radius: 12px;
-    --shadow: 0 1px 2px rgba(16,19,23,.05), 0 4px 14px rgba(16,19,23,.05);
+    --bad-soft: #fdeceb;
+    --r: 14px;
+    --shadow: 0 1px 2px rgba(16,19,23,.04), 0 6px 20px rgba(16,19,23,.05);
+    --header-bg: rgba(245,246,248,.94);
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0f1115;
-      --surface: #171a1f;
-      --surface-2: #1c2026;
-      --border: #272c34;
-      --border-strong: #333944;
-      --text: #e9ecf1;
-      --text-muted: #9aa3af;
-      --text-faint: #6b7480;
+      --bg: #0d0f13;
+      --surface: #16191f;
+      --surface-2: #1b1f26;
+      --border: #252a33;
+      --border-strong: #333a45;
+      --text: #eceff4;
+      --text-muted: #9aa3b0;
+      --text-faint: #6a7380;
       --accent: #5b9bff;
-      --accent-soft: #16233a;
-      --good: #57c98a;
-      --good-soft: #12271c;
+      --accent-soft: #16243c;
+      --good: #4ec98a;
       --warn: #e0aa4a;
-      --warn-soft: #2a2013;
+      --warn-soft: #241c10;
       --bad: #f2837a;
-      --bad-soft: #2b1614;
-      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+      --bad-soft: #2a1513;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.3);
+      --header-bg: rgba(13,15,19,.94);
     }
   }
 
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
-    background: var(--bg);
-    color: var(--text);
-    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
-    padding: 32px 20px 64px;
   }
-  .wrap { max-width: 880px; margin: 0 auto; }
+  [hidden] { display: none !important; }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 0 24px; }
+  @media (max-width: 620px) { .wrap { padding: 0 16px; } }
 
-  header { margin-bottom: 28px; }
-  /* The wordmark is dark navy on transparency, so it disappears against the
-     dark theme. A white plate keeps the brand colours exact on both themes
-     rather than filtering the logo and losing the blue accent. */
+  /* ---------- sticky top bar: brand left, credit right ----------
+     The credit used to sit in the footer, below the fold once results
+     rendered. Here it is always on screen without a separate fixed bar. */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--header-bg);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar .wrap {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; min-height: 68px;
+  }
   .brand {
     display: inline-flex; align-items: center; justify-content: center;
-    background: #fff; border-radius: 10px; padding: 10px 14px;
-    margin-bottom: 16px; box-shadow: var(--shadow);
+    background: #fff; border-radius: 9px; padding: 7px 11px; flex: none;
   }
-  .brand img { display: block; height: 30px; width: auto; }
-  @media (max-width: 620px) { .brand img { height: 24px; } }
-  h1 { font-size: 21px; font-weight: 650; letter-spacing: -.01em; margin: 0 0 4px; }
-  .sub { color: var(--text-muted); font-size: 14px; margin: 0; }
+  .brand img { display: block; height: 22px; width: auto; }
+  .credit { text-align: right; line-height: 1.2; flex: none; }
+  .credit .by { font-size: 19px; font-weight: 600; letter-spacing: -.015em; color: var(--text); white-space: nowrap; }
+  .credit .by .lead { color: var(--text-faint); font-weight: 450; }
+  .credit .role {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--text-faint); margin-top: 2px;
+  }
+  @media (max-width: 560px) {
+    .topbar .wrap { min-height: 60px; }
+    .brand img { height: 18px; }
+    .credit .by { font-size: 15px; }
+    .credit .role { display: none; }
+  }
 
-  /* ---- search ---- */
-  form { display: flex; gap: 10px; margin-bottom: 8px; }
-  .field { position: relative; flex: 1; }
-  input[type="text"] {
-    width: 100%; padding: 13px 15px; font-size: 16px; font-family: inherit;
-    color: var(--text); background: var(--surface);
-    border: 1px solid var(--border-strong); border-radius: var(--radius);
-    outline: none; transition: border-color .15s, box-shadow .15s;
+  /* ---------- page heading ---------- */
+  .intro { padding: 34px 0 22px; }
+  h1 { font-size: 26px; font-weight: 660; letter-spacing: -.022em; margin: 0 0 6px; }
+  .intro p { margin: 0; color: var(--text-muted); font-size: 14.5px; max-width: 60ch; }
+
+  /* ---------- one panel for every control ---------- */
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r); box-shadow: var(--shadow); padding: 18px;
   }
-  input[type="text"]::placeholder { color: var(--text-faint); }
-  input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-  button {
-    padding: 13px 22px; font-size: 15px; font-weight: 550; font-family: inherit;
+  .row-search { display: flex; gap: 10px; }
+  .row-search input {
+    flex: 1; min-width: 0; padding: 13px 15px; font-size: 16px; font-family: inherit;
+    color: var(--text); background: var(--surface-2);
+    border: 1px solid var(--border-strong); border-radius: 10px; outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .row-search input::placeholder { color: var(--text-faint); }
+  .row-search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); background: var(--surface); }
+  .btn {
+    padding: 13px 22px; font: inherit; font-size: 15px; font-weight: 550;
     color: #fff; background: var(--accent); border: 1px solid transparent;
-    border-radius: var(--radius); cursor: pointer; white-space: nowrap;
-    transition: opacity .15s, transform .05s;
+    border-radius: 10px; cursor: pointer; white-space: nowrap;
+    transition: filter .15s, transform .05s;
   }
-  button:hover:not(:disabled) { opacity: .9; }
-  button:active:not(:disabled) { transform: translateY(1px); }
-  button:disabled { opacity: .55; cursor: default; }
+  .btn:hover:not(:disabled) { filter: brightness(1.08); }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
+  .btn:disabled { opacity: .55; cursor: default; }
 
-  .dates {
-    display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 12px 0 4px;
-  }
-  .dates .f { display: flex; flex-direction: column; gap: 4px; }
-  .dates label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
-  .dates input[type="date"] {
-    padding: 9px 11px; font-size: 14px; font-family: inherit; color: var(--text);
-    background: var(--surface); border: 1px solid var(--border-strong);
-    border-radius: 9px; outline: none; color-scheme: light dark;
-  }
-  .dates input[type="date"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-  .dates .clear {
-    padding: 9px 12px; font-size: 13px; background: none; color: var(--text-muted);
-    border: 1px solid var(--border); border-radius: 9px; cursor: pointer;
-  }
-  .dates .clear:hover { border-color: var(--accent); color: var(--accent); }
-  .dates .hint { font-size: 12px; color: var(--text-faint); align-self: center; }
+  .divider { height: 1px; background: var(--border); margin: 16px -18px; }
 
-  .examples { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 26px; }
-  .examples span { font-size: 13px; color: var(--text-faint); margin-right: 2px; }
+  /* filters: one aligned grid, so nothing floats */
+  .filters { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
+  @media (max-width: 620px) { .filters { grid-template-columns: 1fr 1fr; } .filters .reset { grid-column: 1 / -1; } }
+  .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .field label { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-faint); }
+  .field input {
+    width: 100%; padding: 10px 12px; font-size: 14px; font-family: inherit;
+    color: var(--text); background: var(--surface-2);
+    border: 1px solid var(--border-strong); border-radius: 9px; outline: none;
+    color-scheme: light dark;
+  }
+  .field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .reset {
+    padding: 10px 14px; font: inherit; font-size: 13.5px; white-space: nowrap;
+    color: var(--text-muted); background: var(--surface-2);
+    border: 1px solid var(--border-strong); border-radius: 9px; cursor: pointer;
+  }
+  .reset:hover { border-color: var(--accent); color: var(--accent); }
+
+  .quick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 14px; }
+  .quick > span { font-size: 12.5px; color: var(--text-faint); margin-right: 2px; }
   .chip {
-    font: inherit; font-size: 13px; padding: 4px 10px; cursor: pointer;
-    color: var(--text-muted); background: var(--surface); border: 1px solid var(--border);
+    font: inherit; font-size: 12.5px; padding: 5px 11px; cursor: pointer;
+    color: var(--text-muted); background: var(--surface-2); border: 1px solid var(--border);
     border-radius: 999px; transition: border-color .15s, color .15s;
   }
   .chip:hover { border-color: var(--accent); color: var(--accent); }
 
-  /* ---- states ---- */
-  [hidden] { display: none !important; }
-  .msg { padding: 14px 16px; border-radius: var(--radius); font-size: 14px; display: flex; gap: 10px; align-items: flex-start; }
-  .msg.err { background: var(--bad-soft); color: var(--bad); border: 1px solid color-mix(in srgb, var(--bad) 22%, transparent); }
-  .msg.info { background: var(--warn-soft); color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 22%, transparent); }
-  .msg strong { font-weight: 600; }
+  /* ---------- messages ---------- */
+  .msg { margin-top: 18px; padding: 13px 15px; border-radius: 11px; font-size: 13.5px; line-height: 1.5; }
+  .msg.err { background: var(--bad-soft); color: var(--bad); border: 1px solid color-mix(in srgb, var(--bad) 20%, transparent); }
+  .msg.note { background: var(--warn-soft); color: var(--warn); border-left: 3px solid var(--warn); }
+  .msg strong { font-weight: 640; }
 
-  .skeleton { animation: pulse 1.3s ease-in-out infinite; }
-  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
-
-  /* ---- results ---- */
-  #results { animation: rise .22s ease-out; }
+  /* ---------- results ---------- */
+  #results, #loading { margin-top: 22px; animation: rise .2s ease-out; }
   @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .skeleton { animation: pulse 1.3s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .5 } }
 
-  .pin-line {
-    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
-    margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border);
-  }
-  .pin-line h2 { margin: 0; font-size: 17px; font-weight: 600; }
-  .pin-line .period { font-size: 13px; color: var(--text-muted); }
+  .resulthead { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .resulthead h2 { margin: 0; font-size: 19px; font-weight: 640; letter-spacing: -.015em; }
+  .resulthead .period { font-size: 13px; color: var(--text-muted); }
 
-  .heroes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .heroes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   @media (max-width: 620px) { .heroes { grid-template-columns: 1fr; } }
   .hero {
     background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow);
+    border-radius: var(--r); padding: 22px; box-shadow: var(--shadow);
   }
-  .hero .label { font-size: 13px; color: var(--text-muted); font-weight: 500; margin-bottom: 8px; }
-  .hero .value { font-size: 34px; font-weight: 660; letter-spacing: -.02em; line-height: 1.1; }
-  .hero .value.na { color: var(--text-faint); font-size: 26px; font-weight: 500; }
-  .hero .note { font-size: 12.5px; color: var(--text-faint); margin-top: 8px; }
+  .hero .label { font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 10px; }
+  .hero .value { font-size: 40px; font-weight: 680; letter-spacing: -.03em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  @media (max-width: 620px) { .hero .value { font-size: 34px; } }
+  .hero .value.na { color: var(--text-faint); font-size: 26px; font-weight: 500; letter-spacing: -.01em; }
+  .hero .note { font-size: 12.5px; color: var(--text-faint); margin-top: 9px; }
 
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
-           background: var(--border); border: 1px solid var(--border);
-           border-radius: var(--radius); overflow: hidden; margin-bottom: 14px; }
+  .stats {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; margin-top: 14px;
+    background: var(--border); border: 1px solid var(--border);
+    border-radius: var(--r); overflow: hidden;
+  }
   @media (max-width: 620px) { .stats { grid-template-columns: 1fr 1fr; } }
-  .stat { background: var(--surface); padding: 14px 16px; }
-  .stat .k { font-size: 12.5px; color: var(--text-muted); margin-bottom: 3px; }
-  .stat .v { font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+  .stat { background: var(--surface); padding: 15px 17px; }
+  .stat .k { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .stat .v { font-size: 18px; font-weight: 620; letter-spacing: -.015em; font-variant-numeric: tabular-nums; }
 
-  details {
-    background: var(--surface-2); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 0; margin-bottom: 12px;
-  }
-  summary {
-    cursor: pointer; padding: 12px 16px; font-size: 13.5px; font-weight: 550;
-    color: var(--text-muted); list-style: none; user-select: none;
-  }
+  details { margin-top: 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r); }
+  summary { cursor: pointer; padding: 13px 17px; font-size: 13.5px; font-weight: 560; color: var(--text-muted); list-style: none; user-select: none; }
   summary::-webkit-details-marker { display: none; }
-  summary::before { content: "▸ "; display: inline-block; transition: transform .15s; }
+  summary::before { content: "›"; display: inline-block; margin-right: 8px; transition: transform .15s; }
   details[open] summary::before { transform: rotate(90deg); }
   details[open] summary { border-bottom: 1px solid var(--border); }
-  .defs { padding: 14px 16px; display: grid; gap: 14px; }
-  .def .k { font-size: 12.5px; font-weight: 600; margin-bottom: 4px; }
-  .def .v { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+  .defs { padding: 15px 17px; display: grid; gap: 15px; }
+  .def .k { font-size: 12.5px; font-weight: 640; margin-bottom: 4px; }
+  .def .v { font-size: 13px; color: var(--text-muted); line-height: 1.65; }
 
-  .meta { font-size: 12.5px; color: var(--text-faint); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .meta { margin-top: 14px; font-size: 12.5px; color: var(--text-faint); display: flex; flex-wrap: wrap; gap: 6px 16px; }
   .meta code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 5px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 6px; }
   .dot.fresh { background: var(--good); }
   .dot.cached { background: var(--warn); }
 
-  footer {
-    margin-top: 44px; padding-top: 20px; border-top: 1px solid var(--border);
-    text-align: center; display: grid; gap: 5px;
-  }
-  footer .credit {
-    font-size: 30px; font-weight: 680; letter-spacing: -.02em;
-    color: var(--text); line-height: 1.2;
-  }
-  @media (max-width: 620px) { footer .credit { font-size: 24px; } }
-  footer .credit .lead { color: var(--text-faint); font-weight: 500; }
-  footer .role {
-    font-size: 12px; text-transform: uppercase; letter-spacing: .1em;
-    color: var(--text-faint); margin-top: 6px;
-  }
-  footer .src { font-size: 12.5px; color: var(--text-faint); }
+  footer { margin: 40px 0 56px; font-size: 12.5px; color: var(--text-faint); }
   footer a { color: inherit; }
 </style>
 </head>
 <body>
-<div class="wrap">
 
-  <header>
+<div class="topbar">
+  <div class="wrap">
     <div class="brand">
       <picture>
         <source srcset="/logo.avif" type="image/avif" />
         <img src="/logo.png" alt="The Sleep Company" width="600" height="132" />
       </picture>
     </div>
-    <h1>Pincode Metrics</h1>
-    <p class="sub">Average Order Value and Conversion Rate by pincode. Defaults to the last 6 months.</p>
-  </header>
+    <div class="credit">
+      <div class="by"><span class="lead">Product by</span> Dhruv Gohil</div>
+      <div class="role">Product Manager</div>
+    </div>
+  </div>
+</div>
 
-  <form id="form" autocomplete="off">
-    <div class="field">
+<div class="wrap">
+
+  <div class="intro">
+    <h1>Pincode Metrics</h1>
+    <p>Average Order Value and Conversion Rate for any pincode. Defaults to the last 6 months.</p>
+  </div>
+
+  <form id="form" class="panel" autocomplete="off">
+    <div class="row-search">
       <input id="pincode" type="text" inputmode="numeric" placeholder="Enter a pincode, e.g. 400092"
              aria-label="Pincode" maxlength="12" required />
+      <button id="submit" class="btn" type="submit">Get metrics</button>
     </div>
-    <button id="submit" type="submit">Get metrics</button>
+
+    <div class="divider"></div>
+
+    <div class="filters">
+      <div class="field">
+        <label for="from">From</label>
+        <input id="from" type="date" aria-label="From date" />
+      </div>
+      <div class="field">
+        <label for="to">To</label>
+        <input id="to" type="date" aria-label="To date" />
+      </div>
+      <button class="reset" id="clear-dates" type="button">Last 6 months</button>
+    </div>
+
+    <div class="quick">
+      <span>Try</span>
+      <button class="chip" type="button" data-pin="400092">400092</button>
+      <button class="chip" type="button" data-pin="560076">560076</button>
+      <button class="chip" type="button" data-pin="500084">500084</button>
+      <button class="chip" type="button" data-pin="411057">411057</button>
+      <button class="chip" type="button" data-pin="122001">122001</button>
+      <span id="dates-hint" hidden></span>
+    </div>
   </form>
-
-  <div class="dates">
-    <div class="f">
-      <label for="from">From</label>
-      <input id="from" type="date" aria-label="From date" />
-    </div>
-    <div class="f">
-      <label for="to">To</label>
-      <input id="to" type="date" aria-label="To date" />
-    </div>
-    <button class="clear" id="clear-dates" type="button">Reset to last 6 months</button>
-    <span class="hint" id="dates-hint">Leave blank for the last 6 months</span>
-  </div>
-
-  <div class="examples">
-    <span>Try:</span>
-    <button class="chip" type="button" data-pin="400092">400092</button>
-    <button class="chip" type="button" data-pin="560076">560076</button>
-    <button class="chip" type="button" data-pin="500084">500084</button>
-    <button class="chip" type="button" data-pin="411057">411057</button>
-    <button class="chip" type="button" data-pin="122001">122001</button>
-  </div>
 
   <div id="error" class="msg err" hidden></div>
 
@@ -258,13 +278,13 @@
   </div>
 
   <div id="results" hidden>
-    <div class="pin-line">
+    <div class="resulthead">
       <h2 id="r-pin"></h2>
       <span class="period" id="r-period"></span>
     </div>
 
-    <div id="r-nodata" class="msg info" hidden></div>
-    <div id="r-caveat" class="msg info" hidden></div>
+    <div id="r-nodata" class="msg note" hidden></div>
+    <div id="r-caveat" class="msg note" hidden></div>
 
     <div class="heroes">
       <div class="hero">
@@ -297,11 +317,7 @@
     <div class="meta" id="r-meta"></div>
   </div>
 
-  <footer>
-    <div class="credit"><span class="lead">Product by</span> Dhruv Gohil</div>
-    <div class="role">Product Manager</div>
-    <div class="src">Data from Google BigQuery · <a href="/health/ready">service status</a></div>
-  </footer>
+  <footer>Data from Google BigQuery · <a href="/health/ready">service status</a></footer>
 </div>
 
 <script>
@@ -492,7 +508,6 @@
     lookup(initial);
   }
   input.focus();
-})();
-</script>
+})();</script>
 </body>
 </html>
