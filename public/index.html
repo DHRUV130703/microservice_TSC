@@ -429,6 +429,7 @@
       '<span>Timezone <code>' + p.timezone + '</code></span>' +
       (d.meta.bytesProcessed ? '<span>' + (d.meta.bytesProcessed / 1e6).toFixed(1) + ' MB scanned</span>' : '');
 
+    showWindow(p);
     show(elResults);
   }
 
@@ -437,8 +438,23 @@
     show(elError);
   }
 
+  // The date inputs are shown filled in so the active window is visible, but a
+  // window we filled in must still behave as the DEFAULT: it rolls forward
+  // weekly, whereas an explicit range is fixed. This flag keeps that
+  // distinction, so displaying the dates does not silently pin them.
+  var datesAreAuto = true;
+
   function currentRange() {
+    if (datesAreAuto) return {};
     return { from: $('from').value.trim(), to: $('to').value.trim() };
+  }
+
+  /** Fills the inputs with a window the server resolved, without pinning it. */
+  function showWindow(period) {
+    if (period.source !== 'default') return;
+    $('from').value = period.from;
+    $('to').value = period.to;
+    datesAreAuto = true;
   }
 
   async function lookup(pincode, range) {
@@ -484,30 +500,62 @@
   });
 
   $('clear-dates').addEventListener('click', function () {
-    $('from').value = ''; $('to').value = '';
-    if (input.value.trim()) lookup(input.value.trim());
+    datesAreAuto = true;
+    if (input.value.trim()) {
+      // The reply carries the default window, which showWindow() writes back.
+      lookup(input.value.trim());
+    } else {
+      prefillDefaultWindow();
+    }
   });
 
   // Changing a date re-runs the current pincode, so the numbers on screen never
   // disagree with the dates shown above them.
   ['from', 'to'].forEach(function (id) {
     $(id).addEventListener('change', function () {
+      datesAreAuto = false;
       if (input.value.trim()) lookup(input.value.trim());
     });
   });
 
   // A shared /?pincode=400092 link still works, but the query is cleared from
   // the address bar so what people see and copy is just the app's own URL.
+  /**
+   * Shows the default window before any search has run, so the filter explains
+   * itself on arrival. Read from /health/ready, which already reports the
+   * resolved period — the client cannot derive it, since the window depends on
+   * server-side mode, anchor and timezone.
+   */
+  async function prefillDefaultWindow() {
+    if (!datesAreAuto) return;
+    try {
+      var res = await fetch('/health/ready', { headers: { Accept: 'application/json' } });
+      var body = await res.json();
+      var p = body && body.data && body.data.period;
+      if (p && p.from && p.to && datesAreAuto) {
+        $('from').value = p.from;
+        $('to').value = p.to;
+      }
+    } catch (e) {
+      // Not important enough to surface: the inputs simply stay blank, which
+      // still means "use the default window".
+    }
+  }
+
   var params = new URLSearchParams(location.search);
   var initial = params.get('pincode');
   if (initial) {
     input.value = initial;
-    if (params.get('from')) $('from').value = params.get('from');
-    if (params.get('to')) $('to').value = params.get('to');
+    if (params.get('from') || params.get('to')) {
+      if (params.get('from')) $('from').value = params.get('from');
+      if (params.get('to')) $('to').value = params.get('to');
+      datesAreAuto = false;
+    }
     history.replaceState(null, '', location.pathname);
     lookup(initial);
   }
   input.focus();
+  if (datesAreAuto) prefillDefaultWindow();
 })();</script>
 </body>
 </html>
