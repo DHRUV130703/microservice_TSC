@@ -211,3 +211,23 @@ describe('serverless entry point', () => {
     expect(typeof mod.default).toBe('function');
   });
 });
+
+describe('tests must not reach the network (regression)', () => {
+  /**
+   * tests/setup.ts once *deleted* STORE_LOCATOR_API_KEY. dotenv/config runs
+   * later, when src/config/env.ts is first imported, and it does not overwrite a
+   * variable that is present — but it does fill in one that was deleted. So the
+   * real key came back and the whole suite began calling the live store locator
+   * on every metrics test. Blanking the value survives dotenv; env.ts reads
+   * blank as unset.
+   */
+  it('leaves the store locator unconfigured', () => {
+    expect(process.env.STORE_LOCATOR_API_KEY).toBe('');
+  });
+
+  it('blocks fetch outright, so no configuration slip can call a live service', async () => {
+    await expect(fetch('https://api.thesleepcompany.in/stores?pincode=400092')).rejects.toThrow(
+      /Network call blocked in tests/,
+    );
+  });
+});
