@@ -280,11 +280,40 @@
     font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
     color: var(--text-faint); margin-bottom: 4px;
   }
-  .store .others .o { display: flex; align-items: baseline; gap: 10px; padding: 6px 0; font-size: 13.5px; }
+  /* Each alternative opens in place and repeats the nearest store's rows, so
+     the second and third choice can be judged on the same facts. Overrides the
+     page-level details/summary styling, which is sized for a standalone panel. */
+  .store .others .o { margin: 0; background: none; border: 0; border-radius: 0; }
   .store .others .o + .o { border-top: 1px solid var(--border); }
+  .store .others .o > summary {
+    display: flex; align-items: baseline; gap: 10px; padding: 9px 0;
+    font-size: 13.5px; font-weight: 400; color: var(--text);
+    cursor: pointer; list-style: none; border: 0;
+  }
+  /* Rotation is stated in both states rather than inherited from the page-level
+     details rule, whose selector these more specific ones would otherwise beat
+     in the open state only. */
+  .store .others .o > summary::before {
+    content: "\203a"; flex: none; margin-right: 0; color: var(--text-faint);
+    transform: none; transition: transform .15s;
+  }
+  .store .others .o[open] > summary::before { transform: rotate(90deg); }
+  .store .others .o[open] > summary { border-bottom: 1px solid var(--border); }
+  .store .others .o > summary:hover .nm { color: var(--accent); }
   .store .others .o .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .store .others .o .cd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--text-faint); }
   .store .others .o .km { font-variant-numeric: tabular-nums; font-weight: 560; color: var(--text-muted); }
+  /* Indented to the chevron gutter so the detail reads as belonging to the row
+     above it, and set a shade tighter than the nearest store's own rows. */
+  .store .others .o .rows { padding: 2px 0 4px 21px; }
+  .store .others .o .row { padding: 8px 0; }
+  .store .others .o .row.lead .v { font-size: 14.5px; }
+  .store .others .o .actions { padding: 2px 0 10px 21px; }
+
+  @media (max-width: 560px) {
+    .store .others .o .rows,
+    .store .others .o .actions { padding-left: 0; }
+  }
 
   @media (max-width: 560px) {
     .store .top { flex-direction: column; align-items: flex-start; gap: 12px; }
@@ -564,6 +593,46 @@
       '</div><div class="v">' + valueHtml + '</div></div>';
   }
 
+  function storeLabel(s) {
+    return s.shortCode || s.storeName || s.storeId || 'Store';
+  }
+
+  function storeDistance(s) {
+    return s.distanceKm === null || s.distanceKm === undefined ? '\u2014' : s.distanceKm + ' km';
+  }
+
+  /**
+   * The labelled fact rows for one store. Shared by the nearest-store card and
+   * by each expanded alternative, so the second and third store are described
+   * on exactly the same terms as the first.
+   */
+  function storeRowsHtml(s) {
+    var landmark = s.landmark && s.landmark.detail;
+    var rating = s.rating
+      ? '<span class="star">\u2605</span>' + esc(s.rating) +
+        (s.reviewCount ? ' <span class="muted">from ' + esc(s.reviewCount) + ' reviews</span>' : '')
+      : '';
+    return (
+      // Rendered even when empty: some stores have no landmark line in the
+      // sheet, and saying so beats a row that silently disappears.
+      storeRow('Landmark', landmark ? esc(landmark) : '<span class="muted">Not recorded for this store</span>', 'lead') +
+      storeRow('Address', esc(trimDot(s.address))) +
+      storeRow('Open', esc(s.timings)) +
+      storeRow('Phone', s.contact ? '<a href="tel:' + esc(s.contact) + '">' + esc(s.contact) + '</a>' : '') +
+      storeRow('Parking', esc(s.parking)) +
+      storeRow('Rating', rating)
+    );
+  }
+
+  /** Directions and store-page links for one store; empty when it has neither. */
+  function storeActionsHtml(s) {
+    var map = (s.landmark && s.landmark.mapUrl) || s.mapLink;
+    var out = [];
+    if (map) out.push('<a class="go" href="' + esc(map) + '" target="_blank" rel="noopener">Get directions</a>');
+    if (s.storeUrl) out.push('<a href="' + esc(s.storeUrl) + '" target="_blank" rel="noopener">Store page</a>');
+    return out.join('');
+  }
+
   /**
    * The nearest store is a separate upstream call, so it is fetched alongside
    * the metrics and rendered on its own. A failure here must not blank the
@@ -580,7 +649,7 @@
       if (!body.success || !body.data || !body.data.nearest) return;
 
       var n = body.data.nearest;
-      $('r-store-name').textContent = n.shortCode || n.storeName || n.storeId || 'Store';
+      $('r-store-name').textContent = storeLabel(n);
 
       // The short code alone repeats across cities, so the header carries the
       // store id and city that an ops user needs to identify the row.
@@ -594,40 +663,27 @@
       $('r-store-dist-n').textContent = hasDist ? n.distanceKm : '';
       $('r-store-dist').hidden = !hasDist;
 
-      var landmark = n.landmark && n.landmark.detail;
-      var rating = n.rating
-        ? '<span class="star">\u2605</span>' + esc(n.rating) +
-          (n.reviewCount ? ' <span class="muted">from ' + esc(n.reviewCount) + ' reviews</span>' : '')
-        : '';
+      $('r-store-rows').innerHTML = storeRowsHtml(n);
+      var actions = storeActionsHtml(n);
+      $('r-store-actions').innerHTML = actions;
+      $('r-store-actions').hidden = !actions;
 
-      $('r-store-rows').innerHTML =
-        // Rendered even when empty: nine stores have no landmark line in the
-        // sheet, and saying so beats a row that silently disappears.
-        storeRow('Landmark', landmark ? esc(landmark) : '<span class="muted">Not recorded for this store</span>', 'lead') +
-        storeRow('Address', esc(trimDot(n.address))) +
-        storeRow('Open', esc(n.timings)) +
-        storeRow('Phone', n.contact ? '<a href="tel:' + esc(n.contact) + '">' + esc(n.contact) + '</a>' : '') +
-        storeRow('Parking', esc(n.parking)) +
-        storeRow('Rating', rating);
-
-      var map = (n.landmark && n.landmark.mapUrl) || n.mapLink;
-      var actions = [];
-      if (map) actions.push('<a class="go" href="' + esc(map) + '" target="_blank" rel="noopener">Get directions</a>');
-      if (n.storeUrl) actions.push('<a href="' + esc(n.storeUrl) + '" target="_blank" rel="noopener">Store page</a>');
-      $('r-store-actions').innerHTML = actions.join('');
-      $('r-store-actions').hidden = !actions.length;
-
+      // Each alternative is a disclosure rather than a bare line: the distance
+      // decides whether you care, and the same detail is one click away when
+      // you do, without re-running the lookup on another pincode.
       var others = (body.data.stores || []).slice(1);
       if (others.length) {
         $('r-store-others').innerHTML =
           '<div class="k">Also nearby</div>' +
           others.map(function (o) {
-            return '<div class="o"><span class="nm">' +
-              esc(o.shortCode || o.storeName || o.storeId || 'Store') + '</span>' +
+            var acts = storeActionsHtml(o);
+            return '<details class="o">' +
+              '<summary><span class="nm">' + esc(storeLabel(o)) + '</span>' +
               (o.storeId ? '<span class="cd">' + esc(o.storeId) + '</span>' : '') +
-              '<span class="km">' +
-              (o.distanceKm === null || o.distanceKm === undefined ? '\u2014' : esc(o.distanceKm) + ' km') +
-              '</span></div>';
+              '<span class="km">' + esc(storeDistance(o)) + '</span></summary>' +
+              '<div class="rows">' + storeRowsHtml(o) + '</div>' +
+              (acts ? '<div class="actions">' + acts + '</div>' : '') +
+              '</details>';
           }).join('');
         show($('r-store-others'));
       } else {
