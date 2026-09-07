@@ -206,28 +206,94 @@
   .def .k { font-size: 12.5px; font-weight: 640; margin-bottom: 4px; }
   .def .v { font-size: 13px; color: var(--text-muted); line-height: 1.65; }
 
-  /* nearest store */
+  /* nearest store
+     Three bands, because the reader asks three different questions: which store
+     is this (header), how do I get to it (rows), and is there a closer option
+     (others). Every fact carries its own label — the previous single grey line
+     ran address, hours, phone and rating together with nothing to separate them. */
   .store {
     margin-top: 14px; background: var(--surface); border: 1px solid var(--border);
     border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden;
   }
+
+  /* Distance decides which store you actually drive to, so it is set at display
+     size rather than tucked into a 12px pill. */
   .store .top {
-    padding: 16px 18px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
-    border-bottom: 1px solid var(--border);
+    padding: 15px 18px; display: flex; align-items: center; gap: 16px;
+    border-bottom: 1px solid var(--border); background: var(--surface-2);
   }
-  .store .top .label { font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-faint); }
-  .store .top .name { font-size: 16px; font-weight: 640; letter-spacing: -.01em; }
-  .store .top .dist {
-    font-size: 12px; font-weight: 600; color: var(--accent);
-    background: var(--accent-soft); padding: 3px 9px; border-radius: 999px;
+  .store .ident { flex: 1; min-width: 0; }
+  .store .ident .label {
+    display: block; font-size: 11px; font-weight: 600; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--text-faint); margin-bottom: 4px;
   }
-  .store .body { padding: 16px 18px; display: grid; gap: 12px; }
-  .store .landmark { font-size: 14.5px; line-height: 1.55; }
-  .store .landmark .k { font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 5px; }
-  .store .facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--text-muted); }
-  .store .facts a { color: var(--accent); text-decoration: none; }
-  .store .facts a:hover { text-decoration: underline; }
-  .store .others { border-top: 1px solid var(--border); padding: 12px 18px; font-size: 12.5px; color: var(--text-faint); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .store .ident .name { font-size: 19px; font-weight: 650; letter-spacing: -.015em; line-height: 1.25; }
+  .store .ident .sub { margin-top: 4px; font-size: 12.5px; color: var(--text-muted); }
+  .store .ident .sub .code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+    padding: 1px 6px; margin-right: 2px;
+  }
+  .store .dist { flex: none; text-align: right; line-height: 1.05; }
+  .store .dist .n {
+    font-size: 27px; font-weight: 660; letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums; color: var(--accent);
+  }
+  .store .dist .u {
+    display: block; margin-top: 3px; font-size: 10.5px; font-weight: 600;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint);
+  }
+
+  .store .rows { padding: 4px 18px 12px; }
+  .store .row {
+    display: grid; grid-template-columns: 84px 1fr; gap: 14px;
+    padding: 11px 0; border-bottom: 1px solid var(--border);
+  }
+  .store .row:last-child { border-bottom: 0; }
+  .store .row .k {
+    font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--text-faint); padding-top: 3px;
+  }
+  .store .row .v { font-size: 14px; line-height: 1.5; min-width: 0; overflow-wrap: anywhere; }
+  /* The landmark is the line a driver actually navigates by; the postal address
+     below it is reference detail, so the two are weighted differently. */
+  .store .row.lead .v { font-size: 15.5px; font-weight: 560; letter-spacing: -.01em; }
+  .store .row .v .muted { color: var(--text-faint); font-weight: 400; }
+  .store .row .v .star { color: #e0a02c; margin-right: 4px; }
+  .store .row .v a { color: var(--accent); text-decoration: none; }
+  .store .row .v a:hover { text-decoration: underline; }
+
+  .store .actions { padding: 2px 18px 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .store .actions a {
+    font-size: 13px; font-weight: 560; text-decoration: none; color: var(--text);
+    background: var(--surface-2); border: 1px solid var(--border-strong);
+    border-radius: 9px; padding: 8px 14px;
+  }
+  .store .actions a:hover { border-color: var(--accent); color: var(--accent); }
+  .store .actions a.go { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .store .actions a.go:hover { color: #fff; opacity: .9; }
+
+  /* One store per line with the distance right-aligned, so the alternatives can
+     be compared down a column instead of read out of a faint sentence. */
+  .store .others { border-top: 1px solid var(--border); background: var(--surface-2); padding: 12px 18px 13px; }
+  .store .others .k {
+    font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--text-faint); margin-bottom: 4px;
+  }
+  .store .others .o { display: flex; align-items: baseline; gap: 10px; padding: 6px 0; font-size: 13.5px; }
+  .store .others .o + .o { border-top: 1px solid var(--border); }
+  .store .others .o .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .store .others .o .cd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--text-faint); }
+  .store .others .o .km { font-variant-numeric: tabular-nums; font-weight: 560; color: var(--text-muted); }
+
+  @media (max-width: 560px) {
+    .store .top { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .store .dist { text-align: left; display: flex; align-items: baseline; gap: 7px; }
+    .store .dist .n { font-size: 23px; }
+    .store .dist .u { margin-top: 0; }
+    .store .row { grid-template-columns: 1fr; gap: 3px; }
+    .store .row .k { padding-top: 0; }
+  }
 
   .meta { margin-top: 14px; font-size: 12.5px; color: var(--text-faint); display: flex; flex-wrap: wrap; gap: 6px 16px; }
   .meta code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
@@ -335,17 +401,18 @@
 
     <div class="store" id="r-store" hidden>
       <div class="top">
-        <span class="label">Nearest store</span>
-        <span class="name" id="r-store-name"></span>
-        <span class="dist" id="r-store-dist"></span>
-      </div>
-      <div class="body">
-        <div class="landmark" id="r-store-landmark-wrap" hidden>
-          <div class="k">How to find it</div>
-          <div id="r-store-landmark"></div>
+        <div class="ident">
+          <span class="label">Nearest store</span>
+          <div class="name" id="r-store-name"></div>
+          <div class="sub" id="r-store-sub"></div>
         </div>
-        <div class="facts" id="r-store-facts"></div>
+        <div class="dist" id="r-store-dist" hidden>
+          <span class="n" id="r-store-dist-n"></span>
+          <span class="u">km away</span>
+        </div>
       </div>
+      <div class="rows" id="r-store-rows"></div>
+      <div class="actions" id="r-store-actions" hidden></div>
       <div class="others" id="r-store-others" hidden></div>
     </div>
 
@@ -482,6 +549,21 @@
     return d.innerHTML;
   };
 
+  /** Drops the trailing full stop the locator puts on some addresses. */
+  function trimDot(value) {
+    return value == null ? '' : String(value).replace(/\s*\.\s*$/, '');
+  }
+
+  /**
+   * One labelled row of the store card. Absent facts are dropped rather than
+   * shown as blanks, so the grid never has an empty value beside a label.
+   */
+  function storeRow(label, valueHtml, cls) {
+    if (!valueHtml) return '';
+    return '<div class="row' + (cls ? ' ' + cls : '') + '"><div class="k">' + label +
+      '</div><div class="v">' + valueHtml + '</div></div>';
+  }
+
   /**
    * The nearest store is a separate upstream call, so it is fetched alongside
    * the metrics and rendered on its own. A failure here must not blank the
@@ -499,29 +581,53 @@
 
       var n = body.data.nearest;
       $('r-store-name').textContent = n.shortCode || n.storeName || n.storeId || 'Store';
-      $('r-store-dist').textContent = n.distanceKm === null ? '' : n.distanceKm + ' km away';
-      $('r-store-dist').hidden = n.distanceKm === null;
 
-      var detail = n.landmark && n.landmark.detail;
-      $('r-store-landmark').textContent = detail || '';
-      $('r-store-landmark-wrap').hidden = !detail;
+      // The short code alone repeats across cities, so the header carries the
+      // store id and city that an ops user needs to identify the row.
+      var sub = [];
+      if (n.storeId) sub.push('<span class="code">' + esc(n.storeId) + '</span>');
+      var place = [n.city, n.pincode].filter(Boolean).map(esc).join(' \u00b7 ');
+      if (place) sub.push(place);
+      $('r-store-sub').innerHTML = sub.join(' ');
 
-      var facts = [];
-      if (n.address) facts.push('<span>' + esc(n.address) + '</span>');
-      if (n.timings) facts.push('<span>' + esc(n.timings) + '</span>');
-      if (n.contact) facts.push('<span>' + esc(n.contact) + '</span>');
-      if (n.rating) facts.push('<span>★ ' + esc(n.rating) + (n.reviewCount ? ' (' + esc(n.reviewCount) + ')' : '') + '</span>');
+      var hasDist = n.distanceKm !== null && n.distanceKm !== undefined;
+      $('r-store-dist-n').textContent = hasDist ? n.distanceKm : '';
+      $('r-store-dist').hidden = !hasDist;
+
+      var landmark = n.landmark && n.landmark.detail;
+      var rating = n.rating
+        ? '<span class="star">\u2605</span>' + esc(n.rating) +
+          (n.reviewCount ? ' <span class="muted">from ' + esc(n.reviewCount) + ' reviews</span>' : '')
+        : '';
+
+      $('r-store-rows').innerHTML =
+        // Rendered even when empty: nine stores have no landmark line in the
+        // sheet, and saying so beats a row that silently disappears.
+        storeRow('Landmark', landmark ? esc(landmark) : '<span class="muted">Not recorded for this store</span>', 'lead') +
+        storeRow('Address', esc(trimDot(n.address))) +
+        storeRow('Open', esc(n.timings)) +
+        storeRow('Phone', n.contact ? '<a href="tel:' + esc(n.contact) + '">' + esc(n.contact) + '</a>' : '') +
+        storeRow('Parking', esc(n.parking)) +
+        storeRow('Rating', rating);
+
       var map = (n.landmark && n.landmark.mapUrl) || n.mapLink;
-      if (map) facts.push('<a href="' + esc(map) + '" target="_blank" rel="noopener">Directions</a>');
-      $('r-store-facts').innerHTML = facts.join('');
+      var actions = [];
+      if (map) actions.push('<a class="go" href="' + esc(map) + '" target="_blank" rel="noopener">Get directions</a>');
+      if (n.storeUrl) actions.push('<a href="' + esc(n.storeUrl) + '" target="_blank" rel="noopener">Store page</a>');
+      $('r-store-actions').innerHTML = actions.join('');
+      $('r-store-actions').hidden = !actions.length;
 
       var others = (body.data.stores || []).slice(1);
       if (others.length) {
         $('r-store-others').innerHTML =
-          '<span>Also nearby:</span>' +
+          '<div class="k">Also nearby</div>' +
           others.map(function (o) {
-            return '<span>' + esc(o.shortCode || o.storeName || o.storeId) +
-              (o.distanceKm === null ? '' : ' · ' + o.distanceKm + ' km') + '</span>';
+            return '<div class="o"><span class="nm">' +
+              esc(o.shortCode || o.storeName || o.storeId || 'Store') + '</span>' +
+              (o.storeId ? '<span class="cd">' + esc(o.storeId) + '</span>' : '') +
+              '<span class="km">' +
+              (o.distanceKm === null || o.distanceKm === undefined ? '\u2014' : esc(o.distanceKm) + ' km') +
+              '</span></div>';
           }).join('');
         show($('r-store-others'));
       } else {
