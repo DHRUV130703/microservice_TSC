@@ -534,13 +534,17 @@
       show(nodata);
     } else { hide(nodata); }
 
+    var nextRefresh = nextRefreshLabel(d.meta.fetchedAt);
     var freshness = d.meta.cached
       ? '<span><i class="dot cached"></i>Cached · updated ' + fmtAge(d.meta.ageSeconds) + '</span>'
       : '<span><i class="dot fresh"></i>Fresh from BigQuery</span>';
     $('r-meta').innerHTML =
       freshness +
+      // A fixed window never moves, but the data under it is still re-read when
+      // the cached entry expires, so the refresh date belongs on both branches.
       (p.source === 'custom'
-        ? '<span>Fixed range · does not roll forward</span>'
+        ? '<span>Fixed range · does not roll forward</span>' +
+          (nextRefresh ? '<span>Next refresh from BigQuery ' + nextRefresh + '</span>' : '')
         : '<span>Refreshes ' + p.anchor + 'ly · next on ' + fmtDate(p.nextRolloverOn) + '</span>') +
       '<span>Timezone <code>' + p.timezone + '</code></span>' +
       (d.meta.bytesProcessed ? '<span>' + (d.meta.bytesProcessed / 1e6).toFixed(1) + ' MB scanned</span>' : '');
@@ -698,6 +702,38 @@
    */
   var defaultWindow = null;
 
+  /**
+   * The deployment's response-cache TTL, from /health/ready. A cached result
+   * for one window is held this long, so it is what decides when a FIXED range
+   * is next re-read from BigQuery — the default window instead rotates its own
+   * cache key on the rollover date, which is the earlier of the two.
+   */
+  var cacheTtlSeconds = null;
+
+  /**
+   * The in-flight read of those settings. Started before the first lookup and
+   * awaited before rendering, so a deep link with explicit dates still shows
+   * its next-refresh date on the very first paint. It runs alongside the
+   * metrics query rather than ahead of it, so it costs no added latency.
+   */
+  var deploymentInfo = null;
+
+  /**
+   * When this exact query will next hit BigQuery: its cached entry expires one
+   * TTL after it was fetched. Returns '' when the TTL is unknown, so the line
+   * omits the date rather than inventing one.
+   */
+  function nextRefreshLabel(fetchedAt) {
+    if (!cacheTtlSeconds || !fetchedAt) return '';
+    var fetched = new Date(fetchedAt).getTime();
+    if (isNaN(fetched)) return '';
+    var when = new Date(fetched + cacheTtlSeconds * 1000);
+    // A bare date says nothing about a sub-daily TTL, so show the clock instead.
+    return cacheTtlSeconds < 86400
+      ? when.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
+      : fmtDate(when.toISOString().slice(0, 10));
+  }
+
   /** Shifts an ISO date back by whole months, clamping to the shorter month. */
   function shiftMonths(iso, months) {
     var parts = String(iso).split('-');
@@ -782,6 +818,8 @@
         fail(body.error && body.error.message ? body.error.message : 'Request failed.');
         return;
       }
+      // Resolved long before BigQuery answers; never rejects.
+      if (deploymentInfo) await deploymentInfo;
       render(body);
       loadStore(pincode);
     } catch (e) {
@@ -817,7 +855,7 @@
       }
       syncRangeChips();
       if (input.value.trim()) lookup(input.value.trim());
-      else prefillDefaultWindow();
+      else deploymentInfo = loadDeploymentWindow();
       return;
     }
 
@@ -858,28 +896,39 @@
   // A shared /?pincode=400092 link still works, but the query is cleared from
   // the address bar so what people see and copy is just the app's own URL.
   /**
-   * Shows the default window before any search has run, so the filter explains
-   * itself on arrival. Read from /health/ready, which already reports the
-   * resolved period — the client cannot derive it, since the window depends on
-   * server-side mode, anchor and timezone.
+   * Reads the deployment's own reporting window and cache TTL from
+   * /health/ready. The client cannot derive either: the window depends on
+   * server-side mode, anchor and timezone, and the TTL is what tells the meta
+   * line when a fixed range is next re-read from BigQuery.
+   *
+   * This always runs — a deep link with explicit dates still needs the TTL, and
+   * the presets still need a default window to anchor on. Only writing the date
+   * inputs is conditional, since filling them must not pin the range.
    */
-  async function prefillDefaultWindow() {
-    if (!datesAreAuto) return;
+  async function loadDeploymentWindow() {
     try {
       var res = await fetch('/health/ready', { headers: { Accept: 'application/json' } });
       var body = await res.json();
-      var p = body && body.data && body.data.period;
-      if (p && p.from && p.to && datesAreAuto) {
-        defaultWindow = { from: p.from, to: p.to };
+      var data = body && body.data;
+      var dep = data && data.deployment;
+      if (dep && typeof dep.cacheTtlSeconds === 'number') cacheTtlSeconds = dep.cacheTtlSeconds;
+
+      var p = data && data.period;
+      if (!p || !p.from || !p.to) return;
+      defaultWindow = { from: p.from, to: p.to };
+      if (datesAreAuto) {
         $('from').value = p.from;
         $('to').value = p.to;
         syncRangeChips();
       }
     } catch (e) {
       // Not important enough to surface: the inputs simply stay blank, which
-      // still means "use the default window".
+      // still means "use the default window", and the meta line omits the
+      // next-refresh date rather than guessing one.
     }
   }
+
+  deploymentInfo = loadDeploymentWindow();
 
   var params = new URLSearchParams(location.search);
   var initial = params.get('pincode');
@@ -895,7 +944,6 @@
     lookup(initial);
   }
   input.focus();
-  if (datesAreAuto) prefillDefaultWindow();
 })();</script>
 </body>
 </html>

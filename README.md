@@ -895,6 +895,10 @@ Details worth knowing:
 - **Indian number formatting.** `en-IN` locale, so ₹4,19,78,941 (lakh grouping), not ₹41,978,941.
 - **Freshness is visible.** A green dot for a fresh BigQuery read, amber for cached with the age,
   plus the refresh cadence and next rollover date — so nobody mistakes week-old figures for live.
+  A fixed range has no rollover, so it shows when that query is next re-read instead: its cached
+  entry expires one `METRICS_CACHE_TTL_SECONDS` after `meta.fetchedAt`. Both dates come from the
+  deployment via `/health/ready`, never from the browser's clock, and the line simply omits the
+  date if that read fails rather than estimating one.
 - **The formulas are in the page.** "How these are calculated" expands to show
   `data.definitions`, generated from the schema mapping, so the numbers are auditable in the UI.
 - **Range presets.** `3 months`, `6 months` and `12 months` sit under the date fields. `6 months`
