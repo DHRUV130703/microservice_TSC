@@ -8,6 +8,19 @@
 <!-- Tab icon is the square mark, cropped from the wordmark: the full lockup is
      illegible at 16px. The in-page header keeps the wordmark. -->
 <link rel="icon" type="image/png" sizes="256x256" href="/icon.png" />
+<script>
+  // Blocking on purpose: stamping the stored theme before the first paint is
+  // what stops an explicit choice flashing the other theme on every load. No
+  // stored choice leaves the attribute off, which hands the decision to
+  // prefers-color-scheme in the CSS below — so this also degrades to the OS
+  // preference if localStorage is unavailable.
+  try {
+    var storedTheme = localStorage.getItem('theme');
+    if (storedTheme === 'light' || storedTheme === 'dark') {
+      document.documentElement.setAttribute('data-theme', storedTheme);
+    }
+  } catch (e) {}
+</script>
 <style>
   :root {
     --bg: #f5f6f8;
@@ -28,9 +41,24 @@
     --r: 14px;
     --shadow: 0 1px 2px rgba(16,19,23,.04), 0 6px 20px rgba(16,19,23,.05);
     --header-bg: rgba(245,246,248,.94);
+    color-scheme: light;
+
+    /* The theme switch is driven entirely by these, so it needs no selectors of
+       its own per theme: in light the knob sits right and the sun shows. */
+    --tt-track: #ffffff;
+    --tt-border: #d4d9e0;
+    --tt-knob: #16191f;
+    --tt-icon: #14171c;
+    --tt-at-right: 1;
+    --tt-sun: 1;
+    --tt-moon: 0;
   }
+  /* Dark is declared twice on purpose: once for the OS preference when the
+     reader has made no choice, and once for an explicit choice, which must win
+     in both directions. CSS cannot share one declaration block across an
+     at-rule boundary, so KEEP THE TWO LISTS BELOW IDENTICAL. */
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #0d0f13;
       --surface: #16191f;
       --surface-2: #1b1f26;
@@ -48,7 +76,42 @@
       --bad-soft: #2a1513;
       --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.3);
       --header-bg: rgba(13,15,19,.94);
+      color-scheme: dark;
+      --tt-track: #16191f;
+      --tt-border: #333a45;
+      --tt-knob: #ffffff;
+      --tt-icon: #ffffff;
+      --tt-at-right: 0;
+      --tt-sun: 0;
+      --tt-moon: 1;
     }
+  }
+  :root[data-theme="dark"] {
+      --bg: #0d0f13;
+      --surface: #16191f;
+      --surface-2: #1b1f26;
+      --border: #252a33;
+      --border-strong: #333a45;
+      --text: #eceff4;
+      --text-muted: #9aa3b0;
+      --text-faint: #6a7380;
+      --accent: #5b9bff;
+      --accent-soft: #16243c;
+      --good: #4ec98a;
+      --warn: #e0aa4a;
+      --warn-soft: #241c10;
+      --bad: #f2837a;
+      --bad-soft: #2a1513;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.3);
+      --header-bg: rgba(13,15,19,.94);
+      color-scheme: dark;
+      --tt-track: #16191f;
+      --tt-border: #333a45;
+      --tt-knob: #ffffff;
+      --tt-icon: #ffffff;
+      --tt-at-right: 0;
+      --tt-sun: 0;
+      --tt-moon: 1;
   }
 
   * { box-sizing: border-box; }
@@ -88,8 +151,45 @@
     font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em;
     color: var(--text-faint); margin-top: 2px;
   }
+  /* Theme switch. The knob sits in one half and the icon for the CURRENT theme
+     in the other, so the control reads as a state rather than as two buttons.
+     Everything about it comes from the palette tokens. */
+  .topbar-right { display: flex; align-items: center; gap: 16px; flex: none; }
+  .theme-toggle {
+    --tt-w: 54px; --tt-h: 30px; --tt-knob-size: 22px; --tt-inset: 3px;
+    position: relative; flex: none; width: var(--tt-w); height: var(--tt-h); padding: 0;
+    background: var(--tt-track); border: 1px solid var(--tt-border);
+    border-radius: 999px; cursor: pointer;
+    transition: background .2s, border-color .2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .theme-toggle svg {
+    position: absolute; top: 50%; width: 15px; height: 15px;
+    transform: translateY(-50%); color: var(--tt-icon); transition: opacity .2s;
+  }
+  .tt-sun  { left: 7px;  opacity: var(--tt-sun); }
+  .tt-moon { right: 7px; opacity: var(--tt-moon); }
+  .tt-knob {
+    position: absolute; top: var(--tt-inset); left: var(--tt-inset);
+    width: var(--tt-knob-size); height: var(--tt-knob-size);
+    border-radius: 50%; background: var(--tt-knob);
+    box-shadow: 0 1px 3px rgba(0,0,0,.3);
+    /* --tt-at-right is 1 in light and 0 in dark; the travel is measured off the
+       track, so resizing the switch needs no second set of numbers. */
+    transform: translateX(calc(
+      var(--tt-at-right) * (var(--tt-w) - 2px - var(--tt-knob-size) - var(--tt-inset) * 2)
+    ));
+    transition: transform .22s cubic-bezier(.3,.7,.4,1), background .2s;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .theme-toggle, .theme-toggle svg, .tt-knob { transition: none; }
+  }
+
   @media (max-width: 560px) {
     .topbar .wrap { min-height: 60px; }
+    .topbar-right { gap: 11px; }
+    .theme-toggle { --tt-w: 48px; --tt-h: 27px; --tt-knob-size: 19px; }
     .brand img { height: 18px; }
     .credit .by { font-size: 16.5px; }
     .credit .role { display: none; }
@@ -133,7 +233,6 @@
     width: 100%; padding: 10px 12px; font-size: 14px; font-family: inherit;
     color: var(--text); background: var(--surface-2);
     border: 1px solid var(--border-strong); border-radius: 9px; outline: none;
-    color-scheme: light dark;
   }
   .field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .quick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 14px; }
@@ -339,9 +438,26 @@
         <img src="/logo.png" alt="The Sleep Company" width="600" height="132" />
       </picture>
     </div>
-    <div class="credit">
-      <div class="by"><span class="lead">Product by</span> Dhruv Gohil</div>
-      <div class="role">Product Manager</div>
+    <div class="topbar-right">
+      <button class="theme-toggle" id="theme-toggle" type="button"
+              role="switch" aria-checked="false" aria-label="Dark theme">
+        <svg class="tt-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.1" fill="currentColor" stroke="none" />
+          <path d="M12 1.8v2.4M12 19.8v2.4M1.8 12h2.4M19.8 12h2.4M4.8 4.8l1.7 1.7M17.5 17.5l1.7 1.7M19.2 4.8l-1.7 1.7M6.5 17.5l-1.7 1.7" />
+        </svg>
+        <svg class="tt-moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
+                transform="translate(-1.4 1.4) scale(.86)" />
+          <path d="M18.9 2.1l.63 1.66 1.66.63-1.66.63-.63 1.66-.63-1.66-1.66-.63 1.66-.63z" />
+          <path d="M21.7 7.5l.42 1.1 1.1.42-1.1.42-.42 1.1-.42-1.1-1.1-.42 1.1-.42z" />
+        </svg>
+        <span class="tt-knob" aria-hidden="true"></span>
+      </button>
+      <div class="credit">
+        <div class="by"><span class="lead">Product by</span> Dhruv Gohil</div>
+        <div class="role">Product Manager</div>
+      </div>
     </div>
   </div>
 </div>
@@ -463,6 +579,52 @@
 
   function show(el) { el.hidden = false; }
   function hide(el) { el.hidden = true; }
+
+  /**
+   * Theme. The stored choice is already stamped on <html> by the blocking
+   * script in <head> — this only keeps the switch in step with it and writes
+   * the reader's choice back.
+   *
+   * With nothing stored the attribute stays absent, which is not the same as
+   * "light": it hands the decision to prefers-color-scheme, so the OS keeps
+   * control until the reader takes it. That is why the switch reads the
+   * RESOLVED theme rather than the attribute alone.
+   */
+  var themeToggle = $('theme-toggle');
+  var systemDark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+  function activeTheme() {
+    var explicit = document.documentElement.getAttribute('data-theme');
+    if (explicit === 'light' || explicit === 'dark') return explicit;
+    return systemDark && systemDark.matches ? 'dark' : 'light';
+  }
+
+  function syncThemeToggle() {
+    var dark = activeTheme() === 'dark';
+    themeToggle.setAttribute('aria-checked', String(dark));
+    themeToggle.title = dark ? 'Switch to light theme' : 'Switch to dark theme';
+  }
+
+  themeToggle.addEventListener('click', function () {
+    var next = activeTheme() === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try {
+      localStorage.setItem('theme', next);
+    } catch (e) {
+      // Blocked storage or a private window: the choice still applies to this
+      // page, it just will not survive a reload.
+    }
+    syncThemeToggle();
+  });
+
+  // Only has any effect while nothing is stored and the OS is still in charge.
+  if (systemDark && systemDark.addEventListener) {
+    systemDark.addEventListener('change', function () {
+      if (!document.documentElement.getAttribute('data-theme')) syncThemeToggle();
+    });
+  }
+
+  syncThemeToggle();
 
   function fmtDate(iso) {
     if (!iso) return '—';

@@ -912,7 +912,16 @@ Details worth knowing:
   none. The page showed an amber banner saying so until it was removed by request. The limitation is
   unchanged — `totalLeads` and `totalOrders` are both in the API response, so a consumer can still
   detect it, but nothing on screen warns against comparing such a pincode with others.
-- Light and dark themes follow the OS; layout is responsive down to mobile.
+- **Light and dark themes, with an explicit switch.** The pill switch in the top bar sets
+  `data-theme` on `<html>` and stores the choice in `localStorage`. With nothing stored the
+  attribute stays absent, which is not the same as light: the CSS falls through to
+  `prefers-color-scheme`, so the OS stays in charge until the reader overrides it. The dark palette
+  is therefore declared twice — once under the media query guarded by
+  `:root:not([data-theme="light"])`, once under `:root[data-theme="dark"]` — so an explicit choice
+  wins in both directions. **Keep those two lists identical.** A blocking script in `<head>`
+  stamps the stored value before first paint, so an explicit choice never flashes the other theme
+  on load, and `color-scheme` is set per theme so the native date pickers follow it too.
+- Layout is responsive down to mobile.
 
 The file is [`public/index.html`](public/index.html); it is mounted in
 [`src/create-app.ts`](src/create-app.ts) via `express.static`, ahead of the API and health routers, with
