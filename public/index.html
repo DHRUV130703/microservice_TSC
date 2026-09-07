@@ -153,10 +153,20 @@
   }
   /* Theme switch. The knob sits in one half and the icon for the CURRENT theme
      in the other, so the control reads as a state rather than as two buttons.
-     Everything about it comes from the palette tokens. */
-  .topbar-right { display: flex; align-items: center; gap: 16px; flex: none; }
+     Everything about it comes from the palette tokens.
+
+     It sits at the trailing edge, PAST the attribution: brand and byline are
+     both "who made this" and belong together, while a theme switch is app
+     chrome. Between the two it read as a control belonging to the byline and
+     crowded three competing items into the right corner. The hairline marks
+     the change of category. */
+  .topbar-right { display: flex; align-items: center; gap: 15px; flex: none; }
+  .topbar-right .rule { width: 1px; height: 27px; background: var(--border); flex: none; }
   .theme-toggle {
-    --tt-w: 54px; --tt-h: 30px; --tt-knob-size: 22px; --tt-inset: 3px;
+    --tt-w: 64px; --tt-h: 30px; --tt-knob-size: 24px; --tt-inset: 3px; --tt-icon-size: 15px;
+    /* The half the knob is NOT covering. The icon is centred in it, so widening
+       the track moves the icon with it instead of needing its own offsets. */
+    --tt-free: calc(var(--tt-w) - 2px - var(--tt-inset) - var(--tt-knob-size));
     position: relative; flex: none; width: var(--tt-w); height: var(--tt-h); padding: 0;
     background: var(--tt-track); border: 1px solid var(--tt-border);
     border-radius: 999px; cursor: pointer;
@@ -164,12 +174,16 @@
     -webkit-tap-highlight-color: transparent;
   }
   .theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  /* The pill is shorter than a comfortable touch target, so the hit area is
+     extended past the drawing rather than the drawing being made clumsy. */
+  .theme-toggle::after { content: ""; position: absolute; inset: -8px -6px; border-radius: 999px; }
   .theme-toggle svg {
-    position: absolute; top: 50%; width: 15px; height: 15px;
+    position: absolute; top: 50%;
+    width: var(--tt-icon-size); height: var(--tt-icon-size);
     transform: translateY(-50%); color: var(--tt-icon); transition: opacity .2s;
   }
-  .tt-sun  { left: 7px;  opacity: var(--tt-sun); }
-  .tt-moon { right: 7px; opacity: var(--tt-moon); }
+  .tt-sun  { left:  calc((var(--tt-free) - var(--tt-icon-size)) / 2); opacity: var(--tt-sun); }
+  .tt-moon { right: calc((var(--tt-free) - var(--tt-icon-size)) / 2); opacity: var(--tt-moon); }
   .tt-knob {
     position: absolute; top: var(--tt-inset); left: var(--tt-inset);
     width: var(--tt-knob-size); height: var(--tt-knob-size);
@@ -187,11 +201,17 @@
   }
 
   @media (max-width: 560px) {
-    .topbar .wrap { min-height: 60px; }
-    .topbar-right { gap: 11px; }
-    .theme-toggle { --tt-w: 48px; --tt-h: 27px; --tt-knob-size: 19px; }
-    .brand img { height: 18px; }
-    .credit .by { font-size: 16.5px; }
+    .topbar .wrap { min-height: 60px; gap: 12px; }
+    /* Three fixed-width items do not fit a phone bar. The byline is the one that
+       must stay full size, so it is allowed to shrink and wrap onto two lines
+       instead — everything overflowed and clipped off-screen while it could not.
+       The hairline is decoration and goes first. */
+    .topbar-right { gap: 10px; flex: 0 1 auto; min-width: 0; }
+    .topbar-right .rule { display: none; }
+    .theme-toggle { --tt-w: 48px; --tt-h: 24px; --tt-knob-size: 18px; --tt-icon-size: 12px; }
+    .brand img { height: 16px; }
+    .credit { flex: 0 1 auto; min-width: 0; }
+    .credit .by { font-size: 16.5px; white-space: normal; }
     .credit .role { display: none; }
   }
 
@@ -439,6 +459,11 @@
       </picture>
     </div>
     <div class="topbar-right">
+      <div class="credit">
+        <div class="by"><span class="lead">Product by</span> Dhruv Gohil</div>
+        <div class="role">Product Manager</div>
+      </div>
+      <span class="rule" aria-hidden="true"></span>
       <button class="theme-toggle" id="theme-toggle" type="button"
               role="switch" aria-checked="false" aria-label="Dark theme">
         <svg class="tt-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -454,10 +479,6 @@
         </svg>
         <span class="tt-knob" aria-hidden="true"></span>
       </button>
-      <div class="credit">
-        <div class="by"><span class="lead">Product by</span> Dhruv Gohil</div>
-        <div class="role">Product Manager</div>
-      </div>
     </div>
   </div>
 </div>
