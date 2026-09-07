@@ -1,5 +1,5 @@
 import { env } from '../config/env.js';
-import { getStoreLandmarks, type StoreLandmark } from '../config/store-landmarks.js';
+import { getStoreLandmarks, type LandmarkTable } from '../config/store-landmarks.js';
 import {
   HttpStoreLocatorRepository,
   type LocatorStore,
@@ -62,12 +62,12 @@ const str = (v: unknown): string | null => {
 
 export class StoresService {
   private readonly repository: StoreLocatorRepository;
-  private readonly landmarks: Map<string, StoreLandmark>;
+  private readonly landmarks: LandmarkTable;
   private readonly cache: StoreCache;
 
   constructor(
     repository: StoreLocatorRepository = new HttpStoreLocatorRepository(),
-    landmarks: Map<string, StoreLandmark> = getStoreLandmarks(),
+    landmarks: LandmarkTable = getStoreLandmarks(),
     cache: StoreCache = new StoreCache(env.STORE_LOCATOR_CACHE_TTL_SECONDS),
   ) {
     this.repository = repository;
@@ -126,10 +126,14 @@ export class StoresService {
     return { payload, ...(message ? { message } : {}) };
   }
 
-  /** Joins one locator result to its spreadsheet row on upper-cased store id. */
+  /**
+   * Joins one locator result to its spreadsheet row. Store id first, then the
+   * locator's own labels — the sheet's naming convention differs from the
+   * locator's, so the labels only help for a store whose id is not yet mapped.
+   */
   private enrich(s: LocatorStore): NearbyStore {
     const storeId = str(s.storeId);
-    const row = storeId ? this.landmarks.get(storeId.toUpperCase()) : undefined;
+    const row = this.landmarks.find(storeId, s.getStoreLocationKey, s.storeShortCode);
 
     return {
       storeId,
@@ -155,7 +159,6 @@ export class StoresService {
             businessAddress: str(row.businessAddress),
             mapUrl: str(row.mapUrl),
             storeName: str(row.storeName),
-            pincode: str(row.pincode),
           }
         : null,
     };

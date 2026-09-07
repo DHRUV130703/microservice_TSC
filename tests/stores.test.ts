@@ -5,7 +5,7 @@ import { StoresController } from '../src/controllers/stores.controller.js';
 import { StoresService } from '../src/services/stores.service.js';
 import { AppError, ErrorCode } from '../src/utils/errors.js';
 import type { LocatorStore, StoreLocatorRepository } from '../src/repositories/store-locator.repository.js';
-import type { StoreLandmark } from '../src/config/store-landmarks.js';
+import { landmarkTableFrom, type StoreLandmark } from '../src/config/store-landmarks.js';
 
 /** Two stores as the upstream returns them: sorted nearest-first. */
 const upstream: LocatorStore[] = [
@@ -18,21 +18,29 @@ const upstream: LocatorStore[] = [
     comingSoon: false,
   },
   {
-    storeId: 'TSC231', storeShortCode: 'Applaud 38 Goregaon', city: 'Mumbai',
+    storeId: 'TSC231', storeShortCode: 'Applaud 38 Goregaon',
+    getStoreLocationKey: 'Applaud 38 Goregaon - Mumbai', city: 'Mumbai',
     pincode: '400063', distance: 2.6, comingSoon: false,
   },
 ];
 
-const landmarks = new Map<string, StoreLandmark>([
-  ['TSC118', {
-    storeId: 'TSC118', storeName: 'Malad_Mumbai', pincode: '400064',
-    latitude: '19.18409', longitude: '72.83609',
-    businessAddress: '269-A/3, First Floor, Solitaire II, Opposite Infinity Mall',
-    landmarkDetail: 'Opposite Infinity Mall, Malad West — 1st floor. PIN 400064.',
+const records: Record<string, StoreLandmark> = {
+  TSC118: {
+    storeId: 'TSC118', storeName: 'Malad_Mumbai',
+    businessAddress: 'The Sleep Company, 269-A/3, First Floor, Solitaire II',
+    landmarkDetail: 'Opposite Infinity Mall, Malad West',
     mapUrl: 'https://maps.google.com/maps?cid=17318950302109061910',
-  }],
-  // TSC231 deliberately absent, to prove a spreadsheet gap degrades gracefully.
-]);
+  },
+  // A store the sheet knows by name but whose id we have never seen, to exercise
+  // the label fallback.
+  'name:applaud38goregaon': {
+    storeId: null, storeName: 'Applaud38Goregaon',
+    businessAddress: 'The Sleep Company, Applaud 38, GML Road',
+    landmarkDetail: 'Applaud 38, Goregaon East',
+    mapUrl: null,
+  },
+};
+const landmarks = landmarkTableFrom(records);
 
 const repo = (stores: LocatorStore[] = upstream): StoreLocatorRepository => ({
   async findNearby() { return stores; },
@@ -62,7 +70,7 @@ describe('GET /api/v1/stores', () => {
       storeId: 'TSC118', shortCode: 'Malad West', city: 'Mumbai', distanceKm: 2.4,
     });
     expect(res.body.data.nearest.landmark).toMatchObject({
-      detail: 'Opposite Infinity Mall, Malad West — 1st floor. PIN 400064.',
+      detail: 'Opposite Infinity Mall, Malad West',
       mapUrl: 'https://maps.google.com/maps?cid=17318950302109061910',
       storeName: 'Malad_Mumbai',
     });
@@ -74,12 +82,21 @@ describe('GET /api/v1/stores', () => {
     expect(res.body.data.nearest.storeId).toBe('TSC118');
   });
 
-  it('still reports a store the spreadsheet does not cover, with landmark null', async () => {
+  it('falls back to the locator label when the store id is unknown', async () => {
+    // TSC231 is absent from the sheet by id, but its label "Applaud 38 Goregaon"
+    // normalises onto a sheet entry, so the landmark is still found.
     const res = await request(appWith(repo())).get('/api/v1/stores?pincode=400090&limit=2');
     const second = res.body.data.stores[1];
     expect(second.storeId).toBe('TSC231');
-    expect(second.landmark).toBeNull();
-    expect(res.body.data.meta).toMatchObject({ storesReturned: 2, landmarksMatched: 1 });
+    expect(second.landmark.detail).toBe('Applaud 38, Goregaon East');
+    expect(res.body.data.meta).toMatchObject({ storesReturned: 2, landmarksMatched: 2 });
+  });
+
+  it('reports landmark null for a store neither id nor label can match', async () => {
+    const unknown = [{ storeId: 'TSC999', storeShortCode: 'Nowhere', distance: 9, comingSoon: false }];
+    const res = await request(appWith(repo(unknown))).get('/api/v1/stores?pincode=400090');
+    expect(res.body.data.nearest.landmark).toBeNull();
+    expect(res.body.data.meta).toMatchObject({ storesReturned: 1, landmarksMatched: 0 });
   });
 
   it('honours limit and caps how many are returned', async () => {

@@ -374,9 +374,9 @@ describe('nearest store inside the metrics response', () => {
     storeUrl: 'https://thesleepcompany.in/x', latitude: '19.18', longitude: '72.83',
     comingSoon: false,
     landmark: {
-      detail: 'Opposite Infinity Mall, Malad West — 1st floor. PIN 400064.',
-      businessAddress: '269-A/3, Solitaire II', mapUrl: 'https://maps.google.com/maps?cid=1',
-      storeName: 'Malad_Mumbai', pincode: '400064',
+      detail: 'Opposite Infinity Mall, Malad West',
+      businessAddress: 'The Sleep Company, 269-A/3, Solitaire II',
+      mapUrl: 'https://maps.google.com/maps?cid=1', storeName: 'Malad_Mumbai',
     },
   };
 

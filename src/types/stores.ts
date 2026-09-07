@@ -23,11 +23,16 @@ export interface NearbyStore {
    * reported, just without navigation help.
    */
   landmark: {
+    /** Navigational line from the store spreadsheet. */
     detail: string | null;
     businessAddress: string | null;
+    /**
+     * Map link carried forward from the previous landmark table; the current
+     * sheet does not cover it. Falls back to the locator's own `mapLink`.
+     */
     mapUrl: string | null;
+    /** The sheet's own name for the store, e.g. `Koramangala_Bengaluru`. */
     storeName: string | null;
-    pincode: string | null;
   } | null;
 }
 

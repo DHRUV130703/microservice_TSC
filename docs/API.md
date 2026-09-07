@@ -351,10 +351,16 @@ curl "http://localhost:3000/api/v1/stores?pincode=400090"
 - **Ordering is the upstream's.** The locator returns stores sorted by ascending
   `distance`; that order is preserved rather than re-sorted, so "nearest" means what the
   upstream says it means.
-- **`landmark` is `null`** when the locator returns a store the spreadsheet does not cover. The
-  store is still reported — it simply carries no navigation help. `meta.landmarksMatched` tells you
-  how many of the returned stores were matched. Measured coverage across seven pincodes:
-  1,512 of 1,519 store entries matched.
+- **The join is by store id, then by locator label.** The spreadsheet is keyed by store name
+  (`Koramangala_Bengaluru`) while the locator identifies stores by id (`TSC118`), and the two naming
+  conventions do not line up — matching the locator's labels against the sheet directly reaches only
+  66%. The import step resolves the id, covering 216 of the 217 stores the locator returns; the
+  remaining miss is an id of `123` that the locator emits with an empty name. A label fallback then
+  catches any store whose id is not yet mapped.
+- **`landmark` is `null`** when neither the id nor the label matches. The store is still reported —
+  it simply carries no navigation help — and `meta.landmarksMatched` reports the shortfall.
+- **`landmark.mapUrl` may be `null`.** The current sheet does not carry map links; where one is
+  known it is carried forward from the previous table. Fall back to the store's own `mapLink`.
 - **No stores found is a success**, not an error: `200`, `nearest: null`, and a `message`.
 - **Cached for 24 hours** per pincode+limit (`STORE_LOCATOR_CACHE_TTL_SECONDS`); store locations
   change rarely.

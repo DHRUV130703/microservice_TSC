@@ -5,6 +5,8 @@ import { logger } from '../utils/logger.js';
 /** One store as returned by the upstream locator. Only fields we use are typed. */
 export interface LocatorStore {
   storeId?: string;
+  /** The locator's own label, e.g. "Malad - Mumbai". Used as a join fallback. */
+  getStoreLocationKey?: string;
   storeName?: string;
   storeShortCode?: string;
   city?: string;

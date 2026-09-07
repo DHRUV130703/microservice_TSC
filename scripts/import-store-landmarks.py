@@ -2,64 +2,122 @@
 """
 Converts the store-landmark spreadsheet into config/store-landmarks.json.
 
-The service reads JSON, not xlsx: no spreadsheet parser in the runtime, the file
-diffs readably in git, and it ships inside the serverless bundle. Re-run this
-whenever the sheet changes.
+    python3 scripts/import-store-landmarks.py ~/Downloads/Store_Landmarks.xlsx
 
-    python3 scripts/import-store-landmarks.py ~/Downloads/store_landmarks_mapped1.xlsx
+The sheet is keyed by store name (`Koramangala_Bengaluru`), but the store-locator
+API identifies stores by id (`TSC118`) — and the two naming conventions do not
+line up: matching the locator's own labels against the sheet reaches only 66%.
+
+So the id is resolved through the storeId -> storeName map already held in the
+committed table, which uses the sheet's own naming convention and covers 216 of
+the 217 stores the locator returns (the miss is an id of "123" that the locator
+emits with an empty name). That map is read from the existing
+config/store-landmarks.json, so this script depends on no file outside the repo.
+
+Output is keyed by upper-cased store id where one is known, and by a normalised
+name otherwise, with a `byName` index so the service can fall back to matching on
+the locator's label for a store whose id we have not seen before.
 """
-import json, sys, pathlib
+import json
+import pathlib
+import sys
+
 import openpyxl
 
-src = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else 'store_landmarks_mapped1.xlsx').expanduser()
-out = pathlib.Path('config/store-landmarks.json')
+SRC = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else 'Store_Landmarks.xlsx').expanduser()
+OUT = pathlib.Path('config/store-landmarks.json')
 
-wb = openpyxl.load_workbook(src, read_only=True, data_only=True)
-ws = wb['Stores']
-rows = list(ws.iter_rows(values_only=True))
+
+def norm(value) -> str:
+    """Comparison key: case, spaces, underscores and hyphens all differ between sources."""
+    return ''.join(ch for ch in str(value or '').lower() if ch.isalnum())
+
+
+def clean(value):
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+# --- the new sheet: name -> landmark ----------------------------------------
+book = openpyxl.load_workbook(SRC, read_only=True, data_only=True)
+sheet = book[book.sheetnames[0]]
+rows = list(sheet.iter_rows(values_only=True))
 header = [str(h).strip() if h else '' for h in rows[0]]
 
-def col(name):
-    return header.index(name)
+try:
+    i_name = header.index('Store Name')
+    i_addr = header.index('Store Address')
+    i_mark = header.index('Landmark Details')
+except ValueError:
+    sys.exit(f'Unexpected columns in {SRC.name}: {header}\nExpected Store Name, Store Address, Landmark Details.')
 
-idx = {k: col(k) for k in
-       ['Store ID', 'Store_name', 'Pincode', 'Latitude', 'Longitude',
-        'Business Address', 'Landmark Detail', 'Map URL']}
-
-def clean(v):
-    if v is None: return None
-    s = str(v).strip()
-    return s or None
-
-stores, skipped = {}, []
-for r in rows[1:]:
-    sid = clean(r[idx['Store ID']])
-    if not sid:
-        skipped.append(r)
+incoming = {}
+for row in rows[1:]:
+    name = clean(row[i_name]) if row else None
+    if not name:
         continue
-    stores[sid.upper()] = {
-        'storeId': sid,
-        'storeName': clean(r[idx['Store_name']]),
-        'pincode': clean(r[idx['Pincode']]),
-        'latitude': clean(r[idx['Latitude']]),
-        'longitude': clean(r[idx['Longitude']]),
-        'businessAddress': clean(r[idx['Business Address']]),
-        'landmarkDetail': clean(r[idx['Landmark Detail']]),
-        'mapUrl': clean(r[idx['Map URL']]),
+    incoming[norm(name)] = {
+        'storeName': name,
+        'businessAddress': clean(row[i_addr]),
+        'landmarkDetail': clean(row[i_mark]),
     }
+
+# --- the committed table: storeId <-> storeName, plus map links -------------
+# The sheet carries no store id and no map URL. The id is what the locator joins
+# on, and the map URL is a durable store fact the sheet simply does not cover,
+# so both are carried forward from the existing table rather than discarded.
+previous = {}
+if OUT.exists():
+    previous = json.loads(OUT.read_text()).get('stores', {})
+
+name_to_id = {}
+map_urls = {}
+for store_id, entry in previous.items():
+    key = norm(entry.get('storeName'))
+    if key:
+        name_to_id.setdefault(key, store_id.upper())
+        if entry.get('mapUrl'):
+            map_urls[key] = entry['mapUrl']
+
+stores, by_name = {}, {}
+resolved = 0
+for key, entry in incoming.items():
+    store_id = name_to_id.get(key)
+    record = dict(entry)
+    record['storeId'] = store_id
+    record['mapUrl'] = map_urls.get(key)
+
+    out_key = store_id or f'name:{key}'
+    stores[out_key] = record
+    by_name[key] = out_key
+    if store_id:
+        resolved += 1
 
 payload = {
     'meta': {
-        'source': src.name,
+        'source': SRC.name,
         'storeCount': len(stores),
-        'note': 'Generated by scripts/import-store-landmarks.py. Keyed by upper-cased Store ID, '
-                'which is what the store-locator API returns as storeId.',
+        'resolvedToStoreId': resolved,
+        'note': (
+            'Generated by scripts/import-store-landmarks.py. Landmark text and address come from the '
+            'sheet; storeId and mapUrl are carried forward from the previous table, which the sheet '
+            'does not cover. Keyed by upper-cased store id where known, else "name:<normalised name>". '
+            'Use byName to fall back to matching on a locator label.'
+        ),
     },
     'stores': stores,
+    'byName': by_name,
 }
-out.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + '\n')
-print(f'{len(stores)} stores -> {out}')
-if skipped:
-    print(f'  skipped {len(skipped)} rows with no Store ID')
-withLandmark = sum(1 for s in stores.values() if s['landmarkDetail'])
-print(f'  with a landmark detail: {withLandmark}/{len(stores)}')
+OUT.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + '\n')
+
+with_landmark = sum(1 for s in stores.values() if s['landmarkDetail'])
+print(f'{len(stores)} stores -> {OUT}')
+print(f'  resolved to a store id : {resolved}/{len(stores)}')
+print(f'  with a landmark detail : {with_landmark}/{len(stores)}')
+if resolved < len(stores):
+    unresolved = [s['storeName'] for s in stores.values() if not s['storeId']]
+    print(f'  no known id (matched by name only): {len(unresolved)}')
+    for name in unresolved:
+        print(f'    - {name}')

@@ -374,7 +374,7 @@ happened).
 ### `GET /api/v1/stores?pincode={pincode}&limit={n}`
 
 Resolves a pincode to nearby physical stores via the store-locator API and attaches the
-pincode-wise landmark details from the store spreadsheet (216 stores), joined on store id.
+landmark details from the store spreadsheet (229 stores), joined on store id with a name fallback.
 
 ```bash
 curl "http://localhost:3000/api/v1/stores?pincode=400090"
