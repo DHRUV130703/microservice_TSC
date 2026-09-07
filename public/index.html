@@ -127,8 +127,7 @@
   .divider { height: 1px; background: var(--border); margin: 16px -18px; }
 
   /* filters: one aligned grid, so nothing floats */
-  .filters { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
-  @media (max-width: 620px) { .filters { grid-template-columns: 1fr 1fr; } .filters .reset { grid-column: 1 / -1; } }
+  .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end; }
   .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
   .field label { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-faint); }
   .field input {
@@ -138,13 +137,6 @@
     color-scheme: light dark;
   }
   .field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-  .reset {
-    padding: 10px 14px; font: inherit; font-size: 13.5px; white-space: nowrap;
-    color: var(--text-muted); background: var(--surface-2);
-    border: 1px solid var(--border-strong); border-radius: 9px; cursor: pointer;
-  }
-  .reset:hover { border-color: var(--accent); color: var(--accent); }
-
   .quick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 14px; }
   .quick > span { font-size: 12.5px; color: var(--text-faint); margin-right: 2px; }
   #dates-hint {
@@ -157,6 +149,10 @@
     border-radius: 999px; transition: border-color .15s, color .15s;
   }
   .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip[aria-pressed="true"] {
+    color: var(--accent); border-color: var(--accent);
+    background: var(--accent-soft); font-weight: 550;
+  }
 
   /* ---------- messages ---------- */
   .msg { margin-top: 18px; padding: 13px 15px; border-radius: 11px; font-size: 13.5px; line-height: 1.5; }
@@ -376,16 +372,13 @@
         <label for="to">To</label>
         <input id="to" type="date" aria-label="To date" />
       </div>
-      <button class="reset" id="clear-dates" type="button">Last 6 months</button>
     </div>
 
     <div class="quick">
-      <span>Try</span>
-      <button class="chip" type="button" data-pin="400092">400092</button>
-      <button class="chip" type="button" data-pin="560076">560076</button>
-      <button class="chip" type="button" data-pin="500084">500084</button>
-      <button class="chip" type="button" data-pin="411057">411057</button>
-      <button class="chip" type="button" data-pin="122001">122001</button>
+      <span>Range</span>
+      <button class="chip" type="button" data-months="3" aria-pressed="false">3 months</button>
+      <button class="chip" type="button" data-months="6" aria-pressed="true">6 months</button>
+      <button class="chip" type="button" data-months="12" aria-pressed="false">12 months</button>
       <span id="dates-hint" hidden></span>
     </div>
   </form>
@@ -406,7 +399,6 @@
     </div>
 
     <div id="r-nodata" class="msg note" hidden></div>
-    <div id="r-caveat" class="msg note" hidden></div>
 
     <div class="heroes">
       <div class="hero">
@@ -543,19 +535,6 @@
       nodata.innerHTML = '<span>' + (body.message || 'No data found for this pincode and period.') + '</span>';
       show(nodata);
     } else { hide(nodata); }
-
-    // Lead-pincode coverage is patchy in the source data. When the lead cohort is
-    // small relative to orders, the conversion rate is a lower bound, so say so
-    // rather than presenting a precise-looking number without context.
-    var caveat = $('r-caveat');
-    if (d.meta.hasData && m.conversionRate !== null && s.totalLeads >= MIN_LEADS_FOR_RATE
-        && s.totalOrders > 0 && s.totalLeads < s.totalOrders * 1.5) {
-      caveat.innerHTML = '<span><strong>Conversion rate is likely understated here.</strong> ' +
-        'Only ' + num.format(s.totalLeads) + ' leads carry this pincode versus ' + num.format(s.totalOrders) +
-        ' orders shipped to it — many buyers are recorded under a different pincode or none at all. ' +
-        'Treat this as a lower bound, and avoid comparing it with other pincodes.</span>';
-      show(caveat);
-    } else { hide(caveat); }
 
     var freshness = d.meta.cached
       ? '<span><i class="dot cached"></i>Cached · updated ' + fmtAge(d.meta.ageSeconds) + '</span>'
@@ -707,6 +686,30 @@
   // distinction, so displaying the dates does not silently pin them.
   var datesAreAuto = true;
 
+  // 6 months is the server's own default window, so selecting it means "no
+  // explicit range" rather than a fixed pair of dates — that is what keeps it
+  // rolling forward weekly. 3 and 12 are pinned ranges the client computes.
+  var RANGES = [3, 6, 12];
+  var DEFAULT_MONTHS = 6;
+
+  /**
+   * The window the server resolved for the default, remembered so the shorter
+   * and longer ranges can be anchored on the same end date. Deriving them from
+   * the browser's own clock instead would let the ranges disagree about when
+   * "now" is, since the default is anchored server-side in Asia/Kolkata.
+   */
+  var defaultWindow = null;
+
+  /** Shifts an ISO date back by whole months, clamping to the shorter month. */
+  function shiftMonths(iso, months) {
+    var parts = String(iso).split('-');
+    var day = Number(parts[2]);
+    var target = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1 - months, 1));
+    var lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+    target.setUTCDate(Math.min(day, lastDay));
+    return target.toISOString().slice(0, 10);
+  }
+
   function currentRange() {
     if (datesAreAuto) return {};
     return { from: $('from').value.trim(), to: $('to').value.trim() };
@@ -725,6 +728,27 @@
     return 'partial';
   }
 
+  /**
+   * Derives the selected chip from the dates rather than from the last click,
+   * so a hand-typed range that happens to be exactly 3 months still reads as
+   * "3 months", and anything else reads as no preset at all.
+   */
+  function syncRangeChips() {
+    var active = null;
+    if (datesAreAuto) {
+      active = DEFAULT_MONTHS;
+    } else {
+      var f = $('from').value.trim();
+      var t = $('to').value.trim();
+      if (f && t) {
+        RANGES.forEach(function (m) { if (shiftMonths(t, m) === f) active = m; });
+      }
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('.chip[data-months]'), function (chip) {
+      chip.setAttribute('aria-pressed', String(Number(chip.dataset.months) === active));
+    });
+  }
+
   function setHint(text) {
     var el = $('dates-hint');
     el.textContent = text || '';
@@ -734,9 +758,11 @@
   /** Fills the inputs with a window the server resolved, without pinning it. */
   function showWindow(period) {
     if (period.source !== 'default') return;
+    defaultWindow = { from: period.from, to: period.to };
     $('from').value = period.from;
     $('to').value = period.to;
     datesAreAuto = true;
+    syncRangeChips();
   }
 
   async function lookup(pincode, range) {
@@ -780,27 +806,37 @@
     lookup(v);
   });
 
-  Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (chip) {
-    chip.addEventListener('click', function () {
-      input.value = chip.dataset.pin;
-      if (rangeState() === 'partial') {
-        setHint('Pick both dates to apply');
-        return;
-      }
-      setHint('');
-      lookup(chip.dataset.pin);
-    });
-  });
-
-  $('clear-dates').addEventListener('click', function () {
-    datesAreAuto = true;
+  /** Applies one of the preset ranges, and re-runs the current pincode if there is one. */
+  function applyRange(months) {
     setHint('');
-    if (input.value.trim()) {
-      // The reply carries the default window, which showWindow() writes back.
-      lookup(input.value.trim());
-    } else {
-      prefillDefaultWindow();
+    if (months === DEFAULT_MONTHS) {
+      // Leave the dates unpinned so the default keeps rolling forward weekly;
+      // the reply carries the resolved window, which showWindow() writes back.
+      datesAreAuto = true;
+      if (defaultWindow) {
+        $('from').value = defaultWindow.from;
+        $('to').value = defaultWindow.to;
+      }
+      syncRangeChips();
+      if (input.value.trim()) lookup(input.value.trim());
+      else prefillDefaultWindow();
+      return;
     }
+
+    // Anchored on the default window's end date, not the browser's today.
+    var end = (defaultWindow && defaultWindow.to) || $('to').value.trim();
+    if (!end) { setHint('Range unavailable — pick dates instead'); return; }
+    $('to').value = end;
+    $('from').value = shiftMonths(end, months);
+    datesAreAuto = false;
+    syncRangeChips();
+    if (input.value.trim()) lookup(input.value.trim());
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.chip[data-months]'), function (chip) {
+    chip.addEventListener('click', function () {
+      applyRange(Number(chip.dataset.months));
+    });
   });
 
   // Changing a date re-runs the current pincode, so the numbers on screen never
@@ -810,6 +846,7 @@
       var state = rangeState();
       // Clearing both fields is a request for the default window again.
       datesAreAuto = state === 'neither';
+      syncRangeChips();
 
       if (state === 'partial') {
         setHint('Pick both dates to apply');
@@ -835,8 +872,10 @@
       var body = await res.json();
       var p = body && body.data && body.data.period;
       if (p && p.from && p.to && datesAreAuto) {
+        defaultWindow = { from: p.from, to: p.to };
         $('from').value = p.from;
         $('to').value = p.to;
+        syncRangeChips();
       }
     } catch (e) {
       // Not important enough to surface: the inputs simply stay blank, which
@@ -852,6 +891,7 @@
       if (params.get('from')) $('from').value = params.get('from');
       if (params.get('to')) $('to').value = params.get('to');
       datesAreAuto = false;
+      syncRangeChips();
     }
     history.replaceState(null, '', location.pathname);
     lookup(initial);

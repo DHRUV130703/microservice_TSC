@@ -884,7 +884,6 @@ What it handles:
 | Valid pincode with data | Two hero cards (AOV, Conversion Rate) plus orders / order value / leads / converted |
 | Valid pincode, no data | "No orders" / "No leads" rather than a misleading `₹0` or `0%` |
 | Metric with no denominator | `null` renders as "No orders"/"No leads", never as zero |
-| Thin lead coverage | Amber banner warning the conversion rate is a lower bound (see below) |
 | Invalid / missing pincode | The API's own message, inline |
 | Service unreachable | "Could not reach the metrics service" |
 | Loading | Skeleton cards |
@@ -898,14 +897,21 @@ Details worth knowing:
   plus the refresh cadence and next rollover date — so nobody mistakes week-old figures for live.
 - **The formulas are in the page.** "How these are calculated" expands to show
   `data.definitions`, generated from the schema mapping, so the numbers are auditable in the UI.
-- **Honest about the conversion caveat.** When the lead cohort is small relative to orders
-  (`totalLeads < totalOrders * 1.5`), the page says the rate is understated and warns against
-  comparing pincodes. This is a real limitation of lead-pincode coverage in the source data —
-  around 40% of leads carry no pincode at all.
+- **Range presets.** `3 months`, `6 months` and `12 months` sit under the date fields. `6 months`
+  is the server's own default window, so choosing it leaves the range unpinned and it keeps rolling
+  forward weekly; `3` and `12` are fixed ranges, computed back from the default window's end date so
+  every preset agrees on where "now" is. The selected chip is derived from the dates, so a
+  hand-typed range that happens to be exactly one of them still reads as selected.
+- **The thin-lead-coverage caveat is not surfaced in the UI.** Where the lead cohort is small
+  relative to orders (`totalLeads < totalOrders * 1.5`), the conversion rate is a lower bound:
+  around 40% of leads carry no pincode at all, so buyers get recorded under a different pincode or
+  none. The page showed an amber banner saying so until it was removed by request. The limitation is
+  unchanged — `totalLeads` and `totalOrders` are both in the API response, so a consumer can still
+  detect it, but nothing on screen warns against comparing such a pincode with others.
 - Light and dark themes follow the OS; layout is responsive down to mobile.
 
 The file is [`public/index.html`](public/index.html); it is mounted in
-[`src/app.ts`](src/app.ts) via `express.static`, ahead of the API and health routers, with
+[`src/create-app.ts`](src/create-app.ts) via `express.static`, ahead of the API and health routers, with
 `Cache-Control: no-cache` so a stale shell never masks new data.
 
 ### If you would rather build a separate SPA
